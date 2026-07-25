@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$root"
+exec nvim --headless -u NONE \
+	--cmd "set rtp^=${root// /\\ }" \
+	-c "luafile tests/run.lua"

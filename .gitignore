@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors / IDE
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.cursor/
+
+# Logs / local noise
+*.log
+nvim.log
+
+# Lua / LuaLS local
+.luacheckcache
+luacov.*.out
+
+# Test / temp
+/tmp/
+*.tmp
