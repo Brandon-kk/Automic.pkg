@@ -4,6 +4,10 @@
 --- Plugins often freeze checkout metadata (git HEAD, paths, compiled artifact names)
 --- at require time; building in the same session after vim.pack checkout would
 --- otherwise run against stale module state, then stamp.write records the new HEAD.
+---
+--- Do not clear Pack.loaded / Pack.inited here: that would make module_loader treat
+--- require() as a cold :load during build and recurse (loop or previous error).
+--- Session restart after a successful build resets those flags.
 local M = {}
 
 ---@param name string
@@ -13,10 +17,6 @@ function M.modules(name, dir)
 	name = Pack.parse(name)
 	dir = vim.fs.normalize(dir)
 	local lua_root = dir .. "/lua"
-
-	-- Allow a later :load to re-init after build/restart.
-	Pack.loaded[name] = nil
-	Pack.inited[name] = nil
 
 	if vim.loader and vim.loader.reset then
 		pcall(vim.loader.reset, dir)

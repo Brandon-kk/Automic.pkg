@@ -52,8 +52,8 @@ return function()
 	H.falsy(fresh.pending(name), "consume clears mark")
 	unload.modules(name, dir)
 	H.eq(package.loaded[mod], nil, "unload drops cached module")
-	H.eq(Pack.loaded[name], nil, "unload clears Pack.loaded")
-	H.eq(Pack.inited[name], nil, "unload clears Pack.inited")
+	-- Pack.loaded / Pack.inited must stay put so module_loader does not cold-load
+	-- during build; restart after build resets session state.
 
 	local rebuilt = require(mod)
 	H.eq(rebuilt.token, "new", "re-require after unload sees new token")

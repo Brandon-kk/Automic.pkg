@@ -47,7 +47,8 @@ function M.setup()
 			return nil
 		end
 		-- Already available on rtp / currently loading via :load run() → fall through.
-		if Pack.loaded[name] or Pack.loading[name] or Pack.inited[name] then
+		-- During build, packadd already put the pack on rtp; do not re-enter :load.
+		if Pack.loaded[name] or Pack.loading[name] or Pack.inited[name] or Pack.building[name] then
 			return nil
 		end
 		if Pack.disabled[name] or not (Pack._runners and Pack._runners[name]) then
