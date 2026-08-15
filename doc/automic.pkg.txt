@@ -1,4 +1,4 @@
-*automic.pkg.txt*	Orchestration layer for Neovim packages on |vim.pack|
+*automic.pkg.txt*	Package declaration and load orchestration for Neovim on |vim.pack|
 
 		AUTOMIC.PKG REFERENCE MANUAL
 
@@ -6,62 +6,29 @@
 ==============================================================================
 CONTENTS						*automic.pkg*
 
-1. Introduction					|automic.pkg-intro|
-2. Requirements					|automic.pkg-requirements|
-3. Installation					|automic.pkg-install|
-   3.1 Platforms					|automic.pkg-platforms|
-4. The Pack table				|Pack|
-5. Boot						|Pack.boot()|
-6. Register					|Pack.register()|
-7. Load						|Pack.load()|
-8. Lazy load					|Pack.lazy()|
-9. Activation					|automic.pkg-activation|
-10. Root resolver				|Pack.root()|
-11. Introspection				|automic.pkg-introspection|
-12. Commands					|automic.pkg-commands|
-13. Session restart				|automic.pkg-restart|
-14. Events					|automic.pkg-events|
-15. Example config				|automic.pkg-example|
+1. Requirements					|automic.pkg-requirements|
+2. Installation					|automic.pkg-install|
+3. Boot						|Pack.boot()|
+4. Registration					|Pack.register()|
+5. Load policy					|Pack.load()|
+6. Lazy load					|Pack.lazy()|
+7. Commands					|automic.pkg-commands|
+8. Helpers					|automic.pkg-helpers|
+9. Example					|automic.pkg-example|
 
 
 ==============================================================================
-1. Introduction					*automic.pkg-intro*
-
-Automic.pkg is an orchestration layer for Neovim packages. It does not
-replace |vim.pack|. Responsibilities are partitioned as follows:
-
-	|vim.pack|	Clone, update, delete, lockfile, session registration
-	Automic.pkg	Declaration, dependency graph, load policy, setup,
-			boot sequence, builds, health, load profile
-
-The public entry point is the global |Pack| table, created when Automic.pkg
-is |:packadd|'d. Package declarations use |Pack.register()|. Load policy is
-attached with |Pack.load()| or |Pack.lazy()|. Startup is driven by
-|Pack.boot()| ending in |Pack.boot.run()|.
-
-Lifecycle (fixed order): ~
-
-	boot → declare → install/sync → load → observe
-
-
-==============================================================================
-2. Requirements					*automic.pkg-requirements*
+1. Requirements					*automic.pkg-requirements*
 
 	• Neovim 0.12 or later
-	• `git` executable on |$PATH| (Windows: `Path`)
-	• |:packadd| available
-
-	Platforms: macOS, Linux, and Windows (official Neovim builds).
-	One declaration set with full support on every OS — no
-	OS-specific config and no degraded / fallback modes.
+	• `git` available on |$PATH|
+	• Identical configuration on macOS, Linux, and Windows
 
 
 ==============================================================================
-3. Installation					*automic.pkg-install*
+2. Installation					*automic.pkg-install*
 
-Place Automic.pkg under the |vim.pack| managed opt tree.
-
-Any OS (once inside Neovim): ~
+Execute once inside Neovim: ~
 
 >
 	local dest = vim.fs.joinpath(
@@ -74,558 +41,306 @@ Any OS (once inside Neovim): ~
 	end
 <
 
-Shell / PowerShell clones are optional equivalents targeting the same
-|stdpath|("data")/site/pack/core/opt/Automic.pkg path.
-
-Bootstrap in |init.lua|:
+In |init.lua|: ~
 
 >
 	vim.cmd.packadd("Automic.pkg")
 <
-Automic.pkg registers itself into |Pack.registry|. Do not call
-|Pack.register()| for Automic.pkg a second time.
+
+Do not call |Pack.register()| for Automic.pkg.
 
 
 ==============================================================================
-3.1 Platforms					*automic.pkg-platforms*
-						*automic.pkg-windows*
+3. Boot							*Pack.boot()*
+							*Pack*
 
-	Remote packages	Same on all platforms (|vim.pack| + `git`).
+After |:packadd|, the global |Pack| table is available.
 
-	Local / `dev`	Linked into `site/pack/core/opt/<name>` on
-			every OS. Implementation is fixed per platform
-			(Unix directory symlink; Windows junction) —
-			one call, no fallback chain. Absolute paths
-			are required and applied automatically.
+>
+	Pack.boot("packages.configs")
+	  :options("core.options")
+	  :keys("core.keymaps", " ")
+	  :commands("core.commands")
+	  :lsp("core.lsp")
+	  :autosave()
+	  :run()
+<
 
-	Shell `build`	|vim.system| argv on every OS. Use `string[]`,
-			|:Ex| commands, or a Lua function so the same
-			declaration is valid everywhere.
+	Call					Purpose ~
+	Pack.boot({module?})		Load all declaration modules under
+					the given directory. The directory
+					must lie under
+					|stdpath|("config")/lua.
+					`Pack.boot("packages.configs")`
+					loads `lua/packages/configs/*.lua`
+					in alphabetical order.
+	:options({values})		Apply global settings. See
+					|Pack.boot.options()|.
+	:keys({entries}[, {mapleader}])
+					Define keymaps. Optional second
+					argument sets |vim.g.mapleader|.
+					See |Pack.boot.keys()|.
+	:commands({groups})		Define autocmd groups. See
+					|Pack.boot.commands()|.
+	:lsp(...)			Associate filetypes with language
+					servers. See |Pack.boot.lsp()|.
+	:autosave({opts?})		Enable autosave. See
+					|Pack.boot.autosave()|.
+	:run()				Complete the boot sequence
+					(required once per session).
 
-	Tests		`make test` or
-			`nvim --headless -u NONE -c "luafile tests/run.lua"`
-			from the repo root (Neovim only).
-
-
-==============================================================================
-4. The Pack table					*Pack*
-
-After |:packadd|, `_G.Pack` is defined. Selected fields are sealed: wholesale
-replacement of `registry`, `active`, `idle`, or `refs` raises an error.
-Individual keys may be updated. There is no `Pack.reset`; full teardown is a
-Neovim |:restart|.
-
-Public functions: ~
-
-	|Pack.boot()|		Startup chain
-	|Pack.register()|	Package declaration
-	|Pack.root()|		Filesystem root helper for LSP
-	|Pack.parse()|		Resolve pack directory name from a spec
-	|Pack.path()|		Resolve on-disk pack path
-	|Pack.available()|	Whether a named pack is healthy on disk
-
-Runtime maps (read-oriented): ~
-
-	Pack.registry		name → declaration
-	Pack.active		specs passed to |vim.pack| as active
-	Pack.idle		specs held idle (`cond`)
-	Pack.modules		module string → pack name
-	Pack.loaded		packadd completed
-	Pack.inited		config and `var` use-hooks completed
-	Pack.loading		load in progress
-	Pack.disabled		idle by `cond`
-	Pack.refs		reverse dependency edges
-
-
-==============================================================================
-5. Boot							*Pack.boot()*
-
-Pack.boot({module?})
-
-	Returns a |Pack.BootHandle|. Chain methods execute in call order.
-	Unknown methods emit a warning and return the handle so that
-	|Pack.boot.run()| still runs.
-
-	{module}	string?		Module path whose directory contains
-					declaration files (see
-					|automic.pkg-boot-layout|).
-
-	Method		Argument			Type ~
-	:options()	{values}			table|string
-	:keys()		{entries}[, {mapleader}]	table|string [, string]
-	:commands()	{groups}			table|string
-	:lsp()		{enable}[, {disable}]		see |Pack.boot.lsp()|
-	:autosave()	{opts?}				boolean|table
-	:run()		—				—
-
-	String arguments name a Lua module that returns a table. Table
-	arguments are used inline.
-
-						*automic.pkg-boot-layout*
-Declaration directory: ~
-
-	• Must lie under |stdpath|("config") .. "/lua"
-	• `Pack.boot("packages.configs")` →
-	  `…/lua/packages/configs/*.lua`
-	• Every `*.lua` file is required in alphabetical order
-	• Module name is `{prefix}.{filename_without_ext}`
-
-	If {module} is omitted or empty, chain methods still run, but
-	declarations are not loaded and install is not scheduled.
+Arguments may be module names that return a table, or tables supplied
+inline.
 
 						*Pack.boot.options()*
 :options({values})
 
-	Global configuration only. Window/buffer-local tables (`wo` / `bo`)
-	are rejected; put defaults in `opt` instead.
+	Global settings only. Window- and buffer-local tables (`wo` / `bo`)
+	are not accepted.
 
-	Field		Type			Assignment ~
-	g		table			|vim.g|
-	opt		table			|vim.opt| (global defaults)
-	hl		table			|nvim_set_hl()| namespace 0;
-					string value = `{ link = ... }`;
-					re-applied on |ColorScheme|
-	diagnostic	table			|vim.diagnostic.config()|
-	plugins		fun|table		Run last. Function (or map of
-					functions) for third-party
-					global config APIs — not limited
-					to |vim.g| (e.g. `vim.g`,
-					`vim.filetype`, plugin globals).
+	Field		Purpose ~
+	g		|vim.g| assignments
+	opt		|vim.opt| defaults
+	hl		Highlight definitions (|nvim_set_hl()|; a string
+			value means `{ link = ... }`; re-applied on
+			|ColorScheme|)
+	diagnostic	|vim.diagnostic.config()|
+	plugins		Function (or map of functions) for third-party
+			global configuration (e.g. |vim.g|, |vim.filetype|)
 
 	Application order: g → opt → diagnostic → hl → plugins.
 
-	Example: ~
 >
 	:options({
 	  g = { mapleader = " " },
 	  opt = { number = true },
 	  plugins = function()
 	    vim.g.my_plugin = { a = "xxx" }
-	    vim.filetype.add({ extension = { foo = "fooscript" } })
 	  end,
 	})
 <
 
-
 						*Pack.boot.keys()*
 :keys({entries}, {mapleader?})
 
-	Each entry: `{ mode, lhs, rhs, opts? }` (|vim.keymap.set()|).
+	Each entry has the form `{ mode, lhs, rhs, opts? }`
+	(|vim.keymap.set()|).
 
-	Optional {mapleader} (string) sets |vim.g.mapleader| before any
-	mappings are created. Omit it to leave leader unchanged (configure
-	via |Pack.boot.options()| `g.mapleader` or elsewhere).
+	Optional {mapleader} sets |vim.g.mapleader| before mappings are
+	created.
 
-	When {opts}.event is set, the mapping is attached as a buffer-local
-	|autocmd| for |ev.buf|. Autocmd fields consumed from {opts}: `event`,
-	`pattern`, `once`, `nested`. Remaining fields go to |vim.keymap.set()|.
-
-	Backfill (event may have fired before registration): ~
-
-	Event				Scope ~
-	|FileType|			Matching filetype
-	|LspAttach|			`pattern` matches buffer filetype
-	BufRead / BufReadPost /
-	BufNewFile			Named file-like buffers
-	BufEnter / BufWinEnter /
-	BufAdd				Named file-like buffers
-	|VimEnter| / |UIEnter|		When UI is ready
-	|ColorScheme| /
-	|ColorSchemePre|		Current buffer only
-
-	Ephemeral events (e.g. |User|, |TextChanged|) are not backfilled.
+	When {opts}.event is set, the mapping is attached for matching
+	buffers when that event occurs (including buffers that already
+	match, where applicable).
 
 						*Pack.boot.commands()*
 :commands({groups})
 
-	Keys are |augroup| names (`clear = true`). Values are one autocmd
-	definition or a list. Each definition requires `event`; remaining
-	keys are passed to |nvim_create_autocmd()|.
+	Keys are |augroup| names. Values are a single autocmd definition
+	or a list. Each definition requires `event`; remaining keys are
+	passed to |nvim_create_autocmd()|.
 
 						*Pack.boot.lsp()*
 :lsp({enable}, {disable?})
 
-	Forms: ~
+	Accepted forms: ~
 		:lsp("module")
 		:lsp({ filetype = server, … })
 		:lsp({ enable = …, disable = … })
 		:lsp(enable, disable)
 
-	Activation is deferred until the first |FileType| when LSP is not
-	already active.
-
 						*Pack.boot.autosave()*
 :autosave({opts?})
 
-	Opt-in. No autosave occurs unless this method is called.
+	Enables autosave. Writes on |InsertLeave| and, after a short
+	debounce, on |TextChanged|. Skips readonly buffers, non-empty
+	'buftype', unmodified buffers, and unnamed buffers.
 
-	|InsertLeave|	Immediate nested write (|BufWritePre| same turn)
-	|TextChanged|	Debounced write (~200 ms)
-
-	Skipped: 'readonly', non-empty 'buftype', unmodified, unnamed.
-
-	Forms: `:autosave()` / `:autosave(true)` / `:autosave(false)` /
-	`:autosave({ … })`.
-
-	Field		Type			Meaning ~
-	ft		string|string[]		Exclude filetypes
-	buftype		string|string[]		Exclude buftypes
-	filename	string|string[]		Exclude |glob2regpat| matches
-	enable		boolean?		false disables; default true
+	Field		Purpose ~
+	ft		Filetypes to exclude
+	buftype		Buftypes to exclude
+	filename	|glob2regpat| patterns to exclude
+	enable		When false, disables autosave
 
 						*Pack.boot.run()*
 :run()
 
-	Required once per session. Loads the declaration directory (when
-	configured), marks boot complete, and schedules package sync/install
-	after |UIEnter| / |VimEnter| (or immediately when already entered).
-
-	If declaration loading fails, install is skipped and boot may be
-	retried. Returns |Pack|.
+	Required once per session. Loads declarations and performs
+	package install/sync.
 
 
 ==============================================================================
-6. Register						*Pack.register()*
+4. Registration						*Pack.register()*
 
-Pack.register({plugin})
+>
+	Pack.register({
+	  "https://github.com/user/plugin.nvim",
+	  module = "plugin",
+	}):load({
+	  config = function(plugin)
+	    plugin.setup({})
+	  end,
+	})
+<
 
-	Registers one package. Returns a |Pack.Handle|, or |nil| on validation
-	failure. Accepts a single table. `Pack.register({})` returns a no-op
-	handle.
-
-	Forms: ~
-		Pack.register({ "https://…", module = "…", … })
-		Pack.register({ spec = { src = "…" }, module = "…", … })
-		Pack.register({ path = "…", module = "…" })
-		Pack.register({
-		  dev = true,
-		  spec = { name = "…" },
-		  module = "…",
-		})
-
-	A bare string argument is rejected. Do not combine `[1]` with an
-	explicit `spec` table.
+Returns a handle providing |Pack.load()| / |Pack.lazy()|, or |nil| on
+validation failure. `Pack.register({})` is a no-op.
 
 							*Pack.Plugin*
-	Field		Type			Notes ~
-	[1]		string			URL; exclusive with `spec`
-	spec		table			|vim.pack| specification
-	  .src		string			URL (unless `[1]` / `path` /
-						`dev`)
-	  .name		string			Install directory name
-	  .version	string|vim.VersionRange
-					Branch, tag, commit, or
-					|vim.version.range()|; see
-					|Pack.version|.
-	module		string			Required; not inferred
-	name		string			Directory name (usually from
-						spec)
-	path		string			Local root; see |Pack.path-field|
-	dev		boolean			See |Pack.dev|
-	dependencies	list			See |Pack.Dep|
-	cond		boolean|fun():boolean	Evaluated only at register
-					time. false / function returns
-					false / function errors → idle
-					(excluded from active set, not
-					loaded). true → install and load.
-	build		string|string[]|fun	Post-install / post-update.
-					String may be shell or Ex
-					(e.g. `:TSUpdate`). Use
-					`string[]`, Ex, or a Lua
-					function so the same build is
-					valid on every OS
-					(see |automic.pkg-platforms|).
-	lock		boolean			Skip |:PackUpdate| tree;
-						default true for `path`/`dev`
+	Field		Purpose ~
+	[1]		Repository URL (mutually exclusive with `spec`)
+	spec.src	Repository URL
+	spec.name	Installation directory name
+	spec.version	Branch, tag, commit, or |vim.version.range()|
+	module		Lua module for `config` / |require()| (required)
+	path		Local package root; skips remote installation
+	dev		When true, resolve root as
+			|g:automic_dev_path| / <name>
+	dependencies	Dependent packages
+	cond		When false (or a function returning false), skip
+			installation and load
+	build		Executed after install/update: Ex command
+			(e.g. `:TSUpdate`), argv list
+			(`{ "cmd", "arg" }`), or function
+	lock		When true, exclude from |:PackUpdate|
+			(default true for `path` / `dev`)
 
-	`utils` and `var` are invalid here; pass them to |Pack.load()| or
-	|Pack.lazy()|.
+	`utils` and `var` belong on |Pack.load()| or |Pack.lazy()|.
 
-							*Pack.version*
-`spec.version` is forwarded to |vim.pack|:
+Local package: ~
 
-	• string — branch name, tag, or commit hash
-	• |vim.version.range()| — semver constraint object
+>
+	Pack.register({
+	  path = vim.fn.expand("~/code/my-plugin.nvim"),
+	  module = "my-plugin",
+	}):load({ config = function(p) p.setup({}) end })
+<
 
-After the first install, |vim.pack| may write `nvim-pack-lock.json` under
-|stdpath|("config"). That file stores resolved revisions. Changing
-`version` takes effect on |:PackUpdate| or a restart that re-runs install.
-See |vim.pack-lockfile|.
+Development root: ~
+
+>
+	vim.g.automic_dev_path = vim.fn.expand("~/code")
+	Pack.register({
+	  dev = true,
+	  spec = { name = "my-plugin.nvim" },
+	  module = "my-plugin",
+	}):lazy({ config = function(p) p.setup({}) end })
+<
 
 							*Pack.lock*
-	Automic `lock = true`	Exclude the package and its dependency tree
-				from |:PackUpdate|.
-	nvim-pack-lock.json	Owned by |vim.pack|; resolved git revisions.
-
-							*Pack.path-field*
-							*Pack.dev*
 							*g:automic_dev_path*
-Local packages bypass |vim.pack.add|. Automic creates a link:
-
-	|stdpath|("data")/site/pack/core/opt/<name>  →  <path>
-
-	path	Plugin root; must exist at register time (|expand()|).
-	dev	If true and `path` omitted, `path` =
-		`vim.g.automic_dev_path .. "/" .. name`
-		(`name` from `spec.name`, `name`, or last `module` segment).
-	g:automic_dev_path
-		Root for `dev = true`.
-
-	`spec.src` may document upstream; install uses `path`. A real
-	(non-link) directory already at the pack path is not overwritten.
-	Linking is first-class on every OS (see |automic.pkg-platforms|).
+	`lock = true`		Exclude this dependency tree from
+				|:PackUpdate|.
+	nvim-pack-lock.json	Remote revision pins owned by |vim.pack|.
+	g:automic_dev_path	Root directory for `dev = true`.
 
 							*Pack.Dep*
-Dependency entry (URL string or table):
-
-	Field		Type			Notes ~
-	[1]		string			URL; exclusive with src/spec
-	src		string			URL; exclusive with [1]/spec
-	spec		table			Full |vim.pack| spec
-	name		string			Directory name
-	version		string|table		With [1]/src
-	module		string			Required when `config` is set
-	config		fun(plugin)		After dependency |:packadd|
-	utils		table			Local to that `config` only
-	build		string|string[]|fun	Dependency build
-	dependencies	list			Nested; cycles rejected
-
-							*Pack.Handle*
-	:load({opts?})		|Pack.load()|
-	:lazy({opts?})		|Pack.lazy()|
-
-Re-registration of the same `name` updates the declaration in place.
-Omitted `dependencies` / `build` / `cond` / `path` / `dev` / `lock` clear
-stale values. Changing `module` updates |Pack.modules|.
+Dependency entry (URL string or table): same fields as |Pack.Plugin|, with
+optional `config` / `utils` / `build` scoped to that dependency.
 
 
 ==============================================================================
-7. Load							*Pack.load()*
+5. Load policy						*Pack.load()*
 
 handle:load({opts?})
 
-	Attaches load policy and returns the handle.
+	With no trigger, load immediately. Otherwise specify exactly one
+	of `event`, `keys`, `cmd`, `ft`, or `colorscheme`.
 
-	With no trigger fields, load runs immediately. Otherwise exactly one
-	of `event`, `keys`, `cmd`, `ft`, or `colorscheme` may be set. Empty
-	triggers are rejected.
-
-	A package accepts one successful |Pack.load()| or |Pack.lazy()| claim
-	per Neovim session. A second claim is an error.
-
-	First activation: satisfy dependencies → |:packadd| → `config` →
-	`var` entries with `use = true` (once). Shared `keys` / `cmd` load
-	every package that claimed the same target.
+	At most one successful |Pack.load()| or |Pack.lazy()| is permitted
+	per package per session.
 
 							*Pack.LoadOpts*
-	Field		Type			Notes ~
-	event		string|string[]		Autocmd event(s) that trigger
-						load; exclusive with other
-						triggers. `"Lazy"` is invalid;
-						use |Pack.lazy()|. Extra
-						|nvim_create_autocmd()| keys
-						(`once`, `pattern`, `group`,
-						`desc`, `nested`, `buffer`)
-						apply only when `event` is set.
-	keys		string|table		Key trigger (shared). Forms: ~
-						  "lhs"
-						  { mode, lhs, rhs?, opts? }
-						  { lhs = …, mode = …, … }
-						Function `rhs` receives the
-						plugin module as argument 1.
-	cmd		string|string[]		User-command name(s) (shared).
-	ft		string|string[]		|FileType| pattern(s).
-	colorscheme	string|string[]|true	Trigger on |:colorscheme|.
-						`true` uses the pack name
-						(and `module` when distinct).
-	defer		boolean			Only with `event = "UIEnter"`:
-						load on the next
-						|vim.schedule| turn.
-	config		fun(plugin)|table	Setup-only. Function receives a
-						proxy that only allows
-						`plugin.setup(...)`. A table
-						is passed directly to `setup`.
-						May read `var` via |setfenv|;
-						does not see `utils`. Plugin
-						|vim.g| knobs belong in
-						|Pack.boot.options()|.
-	utils		table			Identifier → module path.
-						Required at load; injected
-						into the `var` environment
-						only (not into `config`).
-	var		table			Environment for `config` and
-						`var` functions. Entry ~
-						`{ use = true,
-						callback = fun(plugin) }`
-						runs once after successful
-						setup.
-
-	When `event` is absent, autocmd-only keys listed above are ignored.
-
-Event replay: ~
-
-	After a successful trigger load, Automic re-executes the activating
-	event so plugin autocmds registered during load observe it.
-	Chain for |FileType|: FileType → BufReadPost → BufReadPre.
-	|FileType| fires all groups; other events fire only augroups created
-	after capture. Group-less autocmds on BufRead* are not selectively
-	re-fired.
+	Field		Purpose ~
+	event		Load on the given autocmd (`"Lazy"` is invalid;
+			use |Pack.lazy()|). May include `once` / `pattern`
+			/ `group` / …
+	keys		Load on the given key (shared among packages that
+			claim the same key)
+	cmd		Load on the given user command (shared)
+	ft		Load for the given |FileType| patterns
+	colorscheme	Load on |:colorscheme|; `true` uses the package
+			name
+	defer		Only with `event = "UIEnter"`: defer load by one
+			|vim.schedule| turn
+	config		Invoke `plugin.setup(...)`, or pass a table to
+			`setup`. May read `var`. Plugin |vim.g| settings
+			belong in |Pack.boot.options()|.
+	utils		Additional modules for `var` functions only
+	var		Environment for `config`. Entry
+			`{ use = true, callback = fun(plugin) }` runs
+			once after successful setup.
 
 
 ==============================================================================
-8. Lazy load						*Pack.lazy()*
+6. Lazy load						*Pack.lazy()*
 
 handle:lazy({opts?})
 
-	Lazy-loads the package once the UI is ready. Prefer this for packages
-	that are not required on the first screen and do not need
-	`event` / `keys` / `cmd` / `ft` / `colorscheme` triggers.
-
-	Allowed fields only: `config`, `utils`, `var` (semantics as
-	|Pack.LoadOpts|). Trigger fields are rejected; use |Pack.load()| for
-	those. Shares the one-claim-per-session rule with |Pack.load()|.
-	If lazy-load has already run in this session, load runs immediately.
+	Load once after the UI is ready. Accepted fields: `config`,
+	`utils`, `var` only. For event, key, command, filetype, or
+	colorscheme triggers, use |Pack.load()|.
 
 							*Pack.LazyOpts*
-	config		fun(plugin)
+	config		fun(plugin)|table
 	utils		table
 	var		table
 
 
 ==============================================================================
-9. Activation					*automic.pkg-activation*
-
-In addition to |Pack.load()| triggers and |Pack.lazy()|:
-
-	• |require|(`module`) or a submodule prefix resolves via
-	  |Pack.modules| and runs the scheduled runner when present.
-	• Shared `keys` / `cmd` activate every claiming package on first use.
-
-
-==============================================================================
-10. Root resolver					*Pack.root()*
-
-Pack.root({markers})
-
-	Returns `fun(bufnr, on_dir)` for LSP `root_dir` callbacks.
-	{markers} is passed to |vim.fs.root()|; `.git` is always appended.
-	If no root is found, |getcwd|() is used.
-
-
-==============================================================================
-11. Introspection				*automic.pkg-introspection*
-
-							*Pack.parse()*
-Pack.parse({spec})
-
-	Returns the pack directory name for a URL string or specification
-	table. Rejects invalid names (e.g. glob metacharacters).
-
-							*Pack.path()*
-Pack.path({name})
-
-	Returns the on-disk path for {name}, or nil.
-
-							*Pack.available()*
-Pack.available({name})
-
-	Returns true when the package directory is present and healthy
-	(usable |git| HEAD or non-empty non-git tree).
-
-
-==============================================================================
-12. Commands					*automic.pkg-commands*
+7. Commands					*automic.pkg-commands*
 
 						*:PackUpdate*
 :PackUpdate[!] [name ...]
-
-	Update via |vim.pack|. Without `!`, open a confirmation buffer;
-	|:write| applies. With `!`, apply immediately. Omit names for the
-	full active set. Packages with `lock = true` (and their trees) are
-	skipped. After confirmed update and successful builds →
-	|automic.pkg-restart|.
+	Update packages. With `!`, skip confirmation. Trees with
+	`lock = true` are excluded. The session may restart afterward.
 
 						*:PackStatus*
 :PackStatus [name ...]
-
-	Report available updates without downloading (`offline`).
+	Report available updates without downloading.
 
 						*:PackReBuild*
 :PackReBuild[!] [name ...]
-
-	Run registered `build` steps. Without names, prefer previously
-	failed builds. With `!`, force rebuild. On success →
-	|automic.pkg-restart|.
+	Re-run registered `build` steps. With `!`, force. On success the
+	session may restart.
 
 						*:PackLoadProfile*
 :PackLoadProfile
-
-	Open the load-profile UI: state, trigger, timing, dependencies,
-	module, and declaration source. The Startup total closes on |UIEnter|
-	(aligned with --startuptime / first UI / NVIM STARTED). Loads after that
-	point (including |Pack.lazy()|) are excluded from the Startup total.
-	Automic.pkg appears as Kind "Manager" with its own bootstrap wall time
-	(from `plugin/automic.lua` through API init).
+	Display load timing.
 
 						*:PackHealth*
 :PackHealth [name ...]
-
-	Local diagnostics only (no network). Fullscreen tab colored with
-	|DiagnosticOk| / |DiagnosticWarn| / |DiagnosticError| /
-	|DiagnosticInfo|. Press `q` to close. Also echoes a one-line
-	summary.
-
-	Checks: Neovim ≥ 0.12, `git`, |:packadd|, boot status,
-	|g:automic_dev_path|, presence of `nvim-pack-lock.json`, per-plugin
-	install / `path` / `lock` / `version` / missing load claim /
-	duplicate `module` / stale build stamp.
-
-	Automic.pkg itself does not require |Pack.load()| / |Pack.lazy()|.
+	Open the health report. Press `q` to close.
 
 						*:PackClean*
 :PackClean[!]
-
-	Delete on-disk packs absent from |Pack.registry|. With `!`, allow
-	pruning when the registry is empty. Deletions trigger
-	|automic.pkg-restart|.
+	Remove packages absent from the current declarations. The session
+	may restart afterward.
 
 
 ==============================================================================
-13. Session restart				*automic.pkg-restart*
+8. Helpers					*automic.pkg-helpers*
 
-After install, removal (|:PackClean| / sync), confirmed update (including
-builds), or successful |:PackReBuild|:
+							*Pack.root()*
+Pack.root({markers})
+	Return a project-root callback for LSP `root_dir`. `.git` is always
+	included among markers.
 
-	1. Silently save named buffers
-	2. Execute |:restart|
+							*Pack.path()*
+Pack.path({name})
+	Return the on-disk path of a package, or nil.
 
-Failed builds cancel restart. |vim.pack| continues remaining items when one
-fails.
+							*Pack.available()*
+Pack.available({name})
+	Return whether a package is installed.
 
-Automatic restart is suppressed under |--headless|, `-es`, and when
-`vim.g.vscode` is set.
-
-
-==============================================================================
-14. Events					*automic.pkg-events*
-
-Emitted by Automic.pkg: ~
-
-	|User| Lazy		Internal signal that runs |Pack.lazy()|
-				packages once after the UI is ready
-				(at most once per session).
-
-Observed from |vim.pack|: ~
-
-	|PackChanged|		install / update / delete → build stamps,
-				path/health caches, deferred restart after
-				update waves
+							*Pack.parse()*
+Pack.parse({spec})
+	Return the installation directory name for a URL or specification.
 
 
 ==============================================================================
-15. Example config				*automic.pkg-example*
-
-A full working Neovim configuration that uses Automic.pkg:
+9. Example					*automic.pkg-example*
 
 	https://github.com/Brandon-kk/Automic.nvim
 
