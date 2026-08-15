@@ -48,8 +48,10 @@ boot → declare → install/sync → load → observe
 ## 环境
 
 - Neovim 0.12+
-- `$PATH` 中可用的 `git`
+- `PATH` 中可用的 `git`（Unix `$PATH` / Windows `Path`）
 - 可用的 `:packadd`
+
+支持 **macOS、Linux、Windows**（官方 Neovim 构建）。同一套声明在三端完整支持——不按系统拆配置，也没有降级模式。
 
 ---
 
@@ -57,18 +59,31 @@ boot → declare → install/sync → load → observe
 
 ## 安装
 
-```sh
-mkdir -p "$(nvim --headless -u NONE +'echo stdpath("data")' +q)/site/pack/core/opt"
-git clone https://github.com/Brandon-kk/Automic.pkg \
-  "<data>/site/pack/core/opt/Automic.pkg"
-```
+**任意系统**（在 Neovim 里执行一次）：
 
 ```lua
--- init.lua
+local dest = vim.fs.joinpath(vim.fn.stdpath("data"), "site", "pack", "core", "opt", "Automic.pkg")
+vim.fn.mkdir(vim.fs.dirname(dest), "p")
+if vim.fn.isdirectory(dest) == 0 then
+  vim.fn.system({
+    "git", "clone", "https://github.com/Brandon-kk/Automic.pkg", dest,
+  })
+end
+```
+
+然后在 `init.lua`：
+
+```lua
 vim.cmd.packadd("Automic.pkg")
 ```
 
+Shell / PowerShell 克隆只是同一目标路径的可选写法：`stdpath("data")/site/pack/core/opt/Automic.pkg`。
+
 Automic.pkg 会自行写入 `Pack.registry`。勿对 Automic.pkg 再次调用 `Pack.register()`。
+
+本地 / `dev` 包在三端都会链入该目录（Unix 目录符号链接；Windows junction）。Shell 形式的 `build` 在三端均经 `vim.system` 按 argv 执行——用 `build = { "cmd", "arg" }`、`:Ex` 或 Lua 函数，保证同一声明到处有效。
+
+测试：在仓库根目录执行 `make test`，或 `nvim --headless -u NONE -c "luafile tests/run.lua"`（只需 Neovim）。
 
 ---
 
@@ -129,7 +144,7 @@ Pack.register({
 | `spec.name` | `string` | 安装目录名 |
 | `spec.version` | `string` / `vim.VersionRange` | 钉选修订：分支名、标签、提交哈希，或 `vim.version.range(...)`；转发给 `vim.pack` |
 | `module` | `string` | 必填；`config` 与 `require()` 所用模块 |
-| `path` | `string` | 本地根目录；符号链接入 packpath；不经 `vim.pack.add` |
+| `path` | `string` | 本地根目录；三端均链入 packpath；不经 `vim.pack.add` |
 | `dev` | `boolean` | 省略 `path` 时解析为 `vim.g.automic_dev_path/<name>` |
 | `dependencies` | 列表 | URL 字符串或依赖表；可嵌套；拒绝环 |
 | `cond` | `boolean` / `fun(): boolean` | 仅在登记时求值。`false` 或函数返回 `false`（或函数报错）→ idle（不进入 active、不装载）；`true` → 参与安装与装载 |
@@ -162,7 +177,7 @@ Pack.register({
 | `nvim-pack-lock.json` | `vim.pack` | 远程安装的已解析修订           |
 
 
-若 pack 路径上已存在非符号链接的真实目录，不予覆盖。
+若 pack 路径上已存在非链接的真实目录，不予覆盖。
 
 成功返回 `Pack.Handle`；校验失败返回 `nil`。`Pack.register({})` 为无操作句柄。
 

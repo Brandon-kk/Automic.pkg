@@ -52,7 +52,13 @@ function M.collect(names)
 	local packadd_ok = vim.fn.exists(":packadd") == 2
 	add(items, "packadd", packadd_ok and "ok" or "error", packadd_ok and ":packadd available" or ":packadd missing")
 
-	local lockfile = vim.fn.stdpath("config") .. "/nvim-pack-lock.json"
+	local platform = require("automic.util.platform")
+	local uname = (vim.uv.os_uname and vim.uv.os_uname()) or {}
+	local sys = type(uname.sysname) == "string" and uname.sysname
+		or (platform.is_windows() and "Windows" or "unix")
+	add(items, "os", "info", "Host OS: " .. sys .. " (macOS / Linux / Windows fully supported)")
+
+	local lockfile = platform.config_path("nvim-pack-lock.json")
 	if vim.fn.filereadable(lockfile) == 1 then
 		add(items, "vim.pack-lockfile", "info", "Found native lockfile: " .. lockfile)
 	else

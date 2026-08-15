@@ -9,6 +9,7 @@ CONTENTS						*automic.pkg*
 1. Introduction					|automic.pkg-intro|
 2. Requirements					|automic.pkg-requirements|
 3. Installation					|automic.pkg-install|
+   3.1 Platforms					|automic.pkg-platforms|
 4. The Pack table				|Pack|
 5. Boot						|Pack.boot()|
 6. Register					|Pack.register()|
@@ -47,21 +48,34 @@ Lifecycle (fixed order): ~
 2. Requirements					*automic.pkg-requirements*
 
 	• Neovim 0.12 or later
-	• `git` executable on |$PATH|
+	• `git` executable on |$PATH| (Windows: `Path`)
 	• |:packadd| available
+
+	Platforms: macOS, Linux, and Windows (official Neovim builds).
+	One declaration set with full support on every OS — no
+	OS-specific config and no degraded / fallback modes.
 
 
 ==============================================================================
 3. Installation					*automic.pkg-install*
 
-Place Automic.pkg under the |vim.pack| managed opt tree:
+Place Automic.pkg under the |vim.pack| managed opt tree.
+
+Any OS (once inside Neovim): ~
 
 >
-	mkdir -p "<data>/site/pack/core/opt"
-	git clone https://github.com/Brandon-kk/Automic.pkg \
-	  "<data>/site/pack/core/opt/Automic.pkg"
+	local dest = vim.fs.joinpath(
+	  vim.fn.stdpath("data"), "site", "pack", "core", "opt", "Automic.pkg")
+	vim.fn.mkdir(vim.fs.dirname(dest), "p")
+	if vim.fn.isdirectory(dest) == 0 then
+	  vim.fn.system({
+	    "git", "clone", "https://github.com/Brandon-kk/Automic.pkg", dest,
+	  })
+	end
 <
-`<data>` is |stdpath|("data").
+
+Shell / PowerShell clones are optional equivalents targeting the same
+|stdpath|("data")/site/pack/core/opt/Automic.pkg path.
 
 Bootstrap in |init.lua|:
 
@@ -70,6 +84,27 @@ Bootstrap in |init.lua|:
 <
 Automic.pkg registers itself into |Pack.registry|. Do not call
 |Pack.register()| for Automic.pkg a second time.
+
+
+==============================================================================
+3.1 Platforms					*automic.pkg-platforms*
+						*automic.pkg-windows*
+
+	Remote packages	Same on all platforms (|vim.pack| + `git`).
+
+	Local / `dev`	Linked into `site/pack/core/opt/<name>` on
+			every OS. Implementation is fixed per platform
+			(Unix directory symlink; Windows junction) —
+			one call, no fallback chain. Absolute paths
+			are required and applied automatically.
+
+	Shell `build`	|vim.system| argv on every OS. Use `string[]`,
+			|:Ex| commands, or a Lua function so the same
+			declaration is valid everywhere.
+
+	Tests		`make test` or
+			`nvim --headless -u NONE -c "luafile tests/run.lua"`
+			from the repo root (Neovim only).
 
 
 ==============================================================================
@@ -295,7 +330,11 @@ Pack.register({plugin})
 					loaded). true → install and load.
 	build		string|string[]|fun	Post-install / post-update.
 					String may be shell or Ex
-					(e.g. `:TSUpdate`).
+					(e.g. `:TSUpdate`). Use
+					`string[]`, Ex, or a Lua
+					function so the same build is
+					valid on every OS
+					(see |automic.pkg-platforms|).
 	lock		boolean			Skip |:PackUpdate| tree;
 						default true for `path`/`dev`
 
@@ -321,7 +360,7 @@ See |vim.pack-lockfile|.
 							*Pack.path-field*
 							*Pack.dev*
 							*g:automic_dev_path*
-Local packages bypass |vim.pack.add|. Automic creates a symlink:
+Local packages bypass |vim.pack.add|. Automic creates a link:
 
 	|stdpath|("data")/site/pack/core/opt/<name>  →  <path>
 
@@ -333,7 +372,8 @@ Local packages bypass |vim.pack.add|. Automic creates a symlink:
 		Root for `dev = true`.
 
 	`spec.src` may document upstream; install uses `path`. A real
-	(non-symlink) directory already at the pack path is not overwritten.
+	(non-link) directory already at the pack path is not overwritten.
+	Linking is first-class on every OS (see |automic.pkg-platforms|).
 
 							*Pack.Dep*
 Dependency entry (URL string or table):

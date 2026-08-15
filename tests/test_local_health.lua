@@ -31,7 +31,7 @@ return function()
 		H.truthy(local_install.is_local_spec(Pack.registry[name].spec), "spec marked local")
 
 		local ok, err = local_install.link(name, Pack.registry[name].path)
-		H.truthy(ok, "symlink ok: " .. tostring(err))
+		H.truthy(ok, "link ok: " .. tostring(err))
 		H.truthy(Pack.path(name), "Pack.path finds linked pack")
 		H.truthy(Pack.available(name), "local link is available")
 
@@ -40,7 +40,8 @@ return function()
 		H.eq(#remote, 0, "local specs excluded from vim.pack.add list")
 
 		H.clear_pack(name, mod)
-		-- Best-effort cleanup of symlink
+		-- Best-effort cleanup of pack link
+		pcall(local_install.unlink, name)
 		pcall(vim.fn.delete, local_install.target(name))
 	end
 
@@ -56,13 +57,17 @@ return function()
 	do
 		local items = health.collect()
 		H.truthy(#items > 0, "health.collect returns items")
-		local saw_nvim = false
+		local saw_nvim, saw_symlink_warn = false, false
 		for _, item in ipairs(items) do
 			if item.name == "neovim" then
 				saw_nvim = true
 			end
+			if item.name == "windows-symlink" then
+				saw_symlink_warn = true
+			end
 		end
 		H.truthy(saw_nvim, "health reports neovim")
+		H.falsy(saw_symlink_warn, "no OS-degraded health warn")
 	end
 
 	pcall(vim.fn.delete, root, "rf")

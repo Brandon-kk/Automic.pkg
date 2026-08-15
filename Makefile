@@ -1,3 +1,4 @@
 .PHONY: test
+# Portable: only needs `nvim` on PATH (macOS / Linux / Windows).
 test:
-	@bash scripts/test
+	nvim --headless -u NONE -c "luafile tests/run.lua"

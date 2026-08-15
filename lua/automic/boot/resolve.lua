@@ -8,7 +8,10 @@ end
 ---@param dir string
 ---@return boolean
 local function is_descendant(root, dir)
-	return dir:sub(1, #root + 1) == root .. "/"
+	if require("automic.util.platform").is_windows() then
+		root, dir = root:lower(), dir:lower()
+	end
+	return dir == root or dir:sub(1, #root + 1) == root .. "/"
 end
 
 ---@param path string
@@ -19,7 +22,7 @@ end
 
 ---@return string? root
 local function lua_root()
-	local root = vim.uv.fs_realpath(vim.fn.stdpath("config") .. "/lua")
+	local root = vim.uv.fs_realpath(require("automic.util.platform").config_path("lua"))
 	return root and vim.fs.normalize(root) or nil
 end
 
@@ -39,10 +42,11 @@ end
 ---@return string? dir
 ---@return string? prefix
 return function(config)
+	local platform = require("automic.util.platform")
 	if config:find("[/\\]") then
 		local dir = config
 		if not is_absolute(dir) then
-			dir = vim.fn.stdpath("config") .. "/lua/" .. dir
+			dir = vim.fs.joinpath(platform.config_path("lua"), dir)
 		end
 		dir = safe_dir(dir)
 		if not dir then
@@ -54,7 +58,7 @@ return function(config)
 	end
 
 	local prefix = config
-	local dir = safe_dir(vim.fn.stdpath("config") .. "/lua/" .. prefix:gsub("%.", "/"))
+	local dir = safe_dir(vim.fs.joinpath(platform.config_path("lua"), (prefix:gsub("%.", "/"))))
 	if not dir then
 		vim.notify("Pack.boot: configuration directory does not exist or is outside config/lua: " .. prefix, vim.log.levels.ERROR)
 		return nil, nil

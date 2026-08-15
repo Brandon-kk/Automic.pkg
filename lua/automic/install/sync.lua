@@ -20,7 +20,8 @@ return function(active_specs, disabled_specs, opts)
 	end
 
 	local protected = require("automic.deps.protect").protect()
-	local pack_dir = vim.fn.stdpath("data") .. "/site/pack"
+	local platform = require("automic.util.platform")
+	local pack_dir = platform.data_pack()
 	local installed_plugins = {}
 	local seen = {}
 
@@ -31,7 +32,7 @@ return function(active_specs, disabled_specs, opts)
 	for pkg_name, pkg_type in vim.fs.dir(pack_dir) do
 		if pkg_type == "directory" and pkg_name:sub(1, 1) ~= "." then
 			for _, type_dir in ipairs({ "start", "opt" }) do
-				local dir = pack_dir .. "/" .. pkg_name .. "/" .. type_dir
+				local dir = vim.fs.joinpath(pack_dir, pkg_name, type_dir)
 				if vim.fn.isdirectory(dir) == 1 then
 					for name, ftype in vim.fs.dir(dir) do
 						if ftype == "directory" and name ~= "doc" and not seen[name] then

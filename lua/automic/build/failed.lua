@@ -1,5 +1,5 @@
 --- Persist failed builds for :PackReBuild (atomic write vs multi-instance clobber)
-local path = vim.fn.stdpath("state") .. "/pack-hooks-build-failed.json"
+local path = require("automic.util.platform").state_path("pack-hooks-build-failed.json")
 
 local M = {}
 --- Session-local cache prevents concurrent builds from losing updates during read-modify-write.

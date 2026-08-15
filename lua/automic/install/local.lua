@@ -1,13 +1,41 @@
---- Symlink local/dev plugin directories into the vim.pack opt layout.
+--- Link local/dev plugin directories into the vim.pack opt layout.
+--- One mechanism per OS — same Pack API, no fallback chains.
+local platform = require("automic.util.platform")
+
 local M = {}
 
 ---@param name string
 ---@return string
 function M.target(name)
-	return vim.fn.stdpath("data") .. "/site/pack/core/opt/" .. name
+	return platform.data_pack("core", "opt", name)
 end
 
---- Ensure `name` under packpath is a symlink to `path`.
+--- Create the platform directory link (exactly one strategy; no retries).
+--- Windows: junction. macOS / Linux: directory symlink.
+---@param path string absolute source directory
+---@param target string absolute link path
+---@return boolean ok
+---@return string? err
+local function link_dir(path, target)
+	local uv = vim.uv
+	path, target = platform.abspath(path), platform.abspath(target)
+	local opts = platform.is_windows() and { junction = true } or { dir = true }
+	local ok, err = uv.fs_symlink(path, target, opts)
+	if not ok then
+		return false, tostring(err)
+	end
+	return true
+end
+
+--- Whether `target` is a directory link Automic owns (symlink or junction).
+---@param target string
+---@return boolean
+local function is_pack_link(target)
+	local stat = vim.uv.fs_lstat(target)
+	return stat ~= nil and stat.type == "link"
+end
+
+--- Ensure `name` under packpath is a link to `path`.
 ---@param name string
 ---@param path string
 ---@return boolean ok
@@ -19,51 +47,43 @@ function M.link(name, path)
 	if type(path) ~= "string" or path == "" then
 		return false, "missing path"
 	end
-	path = vim.fs.normalize(path)
+	path = platform.abspath(path)
 	if vim.fn.isdirectory(path) ~= 1 then
 		return false, "path is not a directory: " .. path
 	end
 
-	local parent = vim.fn.stdpath("data") .. "/site/pack/core/opt"
+	local parent = platform.data_pack("core", "opt")
 	vim.fn.mkdir(parent, "p")
-	local target = M.target(name)
+	local target = platform.abspath(M.target(name))
 	local uv = vim.uv
 
-	local stat = uv.fs_lstat(target)
-	if stat then
-		if stat.type == "link" then
-			local current = uv.fs_readlink(target)
-			if current and vim.fs.normalize(current) == path then
-				return true
-			end
-			local ok_rm, rm_err = uv.fs_unlink(target)
-			if not ok_rm then
-				return false, "failed to replace symlink: " .. tostring(rm_err)
-			end
-		else
-			return false,
-				"pack path already exists as a real directory (not a symlink): "
-					.. target
-					.. "\nRemove it manually or use a different spec.name before linking path = "
-					.. path
+	if is_pack_link(target) then
+		local current = uv.fs_readlink(target)
+		if current and platform.same_path(current, path) then
+			return true
 		end
+		local ok_rm, rm_err = uv.fs_unlink(target)
+		if not ok_rm then
+			return false, "failed to replace link: " .. tostring(rm_err)
+		end
+	elseif uv.fs_lstat(target) then
+		return false,
+			"pack path already exists as a real directory (not a link): "
+				.. target
+				.. "\nRemove it manually or use a different spec.name before linking path = "
+				.. path
 	end
 
-	-- macOS/Linux: directory symlink. Windows: pass { dir = true } when available.
-	local ok, err = uv.fs_symlink(path, target, { dir = true })
+	local ok, err = link_dir(path, target)
 	if not ok then
-		-- Older libuv may reject the options table; retry without.
-		ok, err = uv.fs_symlink(path, target)
-	end
-	if not ok then
-		return false, "symlink failed: " .. tostring(err)
+		return false, "link failed: " .. tostring(err)
 	end
 	require("automic.deps.healthy").invalidate(target)
 	require("automic.deps.path").invalidate(name)
 	return true
 end
 
---- Remove a local symlink at the pack path (never deletes a real directory).
+--- Remove a local link at the pack path (never deletes a real directory).
 ---@param name string
 ---@return boolean removed
 function M.unlink(name)
@@ -71,12 +91,10 @@ function M.unlink(name)
 		return false
 	end
 	local target = M.target(name)
-	local uv = vim.uv
-	local stat = uv.fs_lstat(target)
-	if not stat or stat.type ~= "link" then
+	if not is_pack_link(target) then
 		return false
 	end
-	local ok = uv.fs_unlink(target)
+	local ok = vim.uv.fs_unlink(target)
 	require("automic.deps.healthy").invalidate(target)
 	require("automic.deps.path").invalidate(name)
 	return ok and true or false
@@ -115,7 +133,7 @@ function M.is_local_spec(spec)
 	return type(P) == "table" and type(P.path) == "string" and P.path ~= ""
 end
 
---- Partition specs into remote (vim.pack) and local (symlink).
+--- Partition specs into remote (vim.pack) and local (link).
 ---@param specs table[]
 ---@return table[] remote
 ---@return table[] local_specs

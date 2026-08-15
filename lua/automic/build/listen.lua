@@ -29,7 +29,7 @@ return function(name, build)
 			end
 			if data.kind == "update" or data.kind == "install" then
 				-- Force the next install pass to run the unified post-update build batch.
-				pcall(vim.fn.delete, vim.fn.stdpath("state") .. "/pack-hooks-install.stamp")
+				pcall(vim.fn.delete, require("automic.util.platform").state_path("pack-hooks-install.stamp"))
 				if cmds.get(data.spec.name) then
 					stamp.clear(data.path)
 					-- Any pack with build: same-session require()/commands may still

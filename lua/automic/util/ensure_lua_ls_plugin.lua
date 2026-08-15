@@ -8,7 +8,7 @@ local function plugin_path()
 	local src = debug.getinfo(1, "S").source
 	if type(src) == "string" and src:sub(1, 1) == "@" then
 		local here = vim.fs.normalize(src:sub(2))
-		return vim.fs.normalize(vim.fs.dirname(here) .. "/../lsp_plugin/pack_utils.lua")
+		return vim.fs.normalize(vim.fs.joinpath(vim.fs.dirname(here), "..", "lsp_plugin", "pack_utils.lua"))
 	end
 	error("unable to resolve Automic.pkg lua_ls plugin path")
 end
@@ -17,9 +17,10 @@ end
 ---@param path string
 local function ensure_trusted(path)
 	-- Only state dir; do not widen log/cache trust surface
-	local dir = vim.fn.stdpath("state") .. "/lua-language-server"
+	local platform = require("automic.util.platform")
+	local dir = platform.state_path("lua-language-server")
 	vim.fn.mkdir(dir, "p")
-	local trusted = dir .. "/trusted"
+	local trusted = vim.fs.joinpath(dir, "trusted")
 	local existing = ""
 	if vim.fn.filereadable(trusted) == 1 then
 		existing = table.concat(vim.fn.readfile(trusted), "\n")
@@ -50,7 +51,7 @@ return function()
 
 	local library = {
 		vim.env.VIMRUNTIME,
-		vim.fn.stdpath("config") .. "/lua",
+		require("automic.util.platform").config_path("lua"),
 	}
 	for _, rtp in ipairs(vim.opt.runtimepath:get()) do
 		if rtp:find("[/\\]site[/\\]pack[/\\]", 1) or rtp:find("[/\\]lazy[/\\]", 1) then

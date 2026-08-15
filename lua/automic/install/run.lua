@@ -15,7 +15,7 @@ return function(active_specs, disabled_specs)
 	active_specs = active_specs or Pack.active
 	disabled_specs = disabled_specs or Pack.idle
 
-	local stamp_path = vim.fn.stdpath("state") .. "/pack-hooks-install.stamp"
+	local stamp_path = require("automic.util.platform").state_path("pack-hooks-install.stamp")
 
 	local function spec_key(spec)
 		local name = Pack.parse(spec)

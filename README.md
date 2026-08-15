@@ -45,25 +45,40 @@ boot → declare → install/sync → load → observe
 ## Requirements
 
 - Neovim 0.12+
-- `git` on `$PATH`
+- `git` on `PATH` (Unix `$PATH` / Windows `Path`)
 - `:packadd` available
+
+Supported environments: **macOS, Linux, and Windows** (official Neovim builds). One declaration set — full support on every OS; no OS-specific config and no degraded modes.
 
 ---
 
 ## Installation
 
-```sh
-mkdir -p "$(nvim --headless -u NONE +'echo stdpath("data")' +q)/site/pack/core/opt"
-git clone https://github.com/Brandon-kk/Automic.pkg \
-  "<data>/site/pack/core/opt/Automic.pkg"
-```
+**Any OS** (run once inside Neovim):
 
 ```lua
--- init.lua
+local dest = vim.fs.joinpath(vim.fn.stdpath("data"), "site", "pack", "core", "opt", "Automic.pkg")
+vim.fn.mkdir(vim.fs.dirname(dest), "p")
+if vim.fn.isdirectory(dest) == 0 then
+  vim.fn.system({
+    "git", "clone", "https://github.com/Brandon-kk/Automic.pkg", dest,
+  })
+end
+```
+
+Then in `init.lua`:
+
+```lua
 vim.cmd.packadd("Automic.pkg")
 ```
 
+Shell / PowerShell clones are optional equivalents of the same `git clone` into `stdpath("data")/site/pack/core/opt/Automic.pkg`.
+
 Automic.pkg registers itself into `Pack.registry`. Do not call `Pack.register()` for Automic.pkg again.
+
+Local / `dev` packs are linked into that tree on every OS (directory symlink on Unix; junction on Windows). Shell `build` runs as argv via `vim.system` on every OS — use `build = { "cmd", "arg" }`, an `:Ex` command, or a Lua function so the same declaration is valid everywhere.
+
+Tests: `make test` or `nvim --headless -u NONE -c "luafile tests/run.lua"` from the repo root (Neovim only).
 
 ---
 
@@ -117,7 +132,7 @@ Pack.register({
 | `spec.name` | `string` | Install directory name |
 | `spec.version` | `string` / `vim.VersionRange` | Pin: branch, tag, commit, or `vim.version.range(...)`; forwarded to `vim.pack` |
 | `module` | `string` | Required; module for `config` and `require()` |
-| `path` | `string` | Local root; symlinked into packpath; skips `vim.pack.add` |
+| `path` | `string` | Local root; linked into packpath on every OS; skips `vim.pack.add` |
 | `dev` | `boolean` | When `path` is omitted, resolve `vim.g.automic_dev_path/<name>` |
 | `dependencies` | list of URL string or dep table | Nested trees; cycles rejected |
 | `cond` | `boolean` / `fun(): boolean` | Evaluated only at register time. `false`, a function returning `false`, or a throwing function → idle (not active, not loaded); `true` → install and load |
@@ -147,7 +162,7 @@ Pack.register({
 | `lock = true` | Automic | Exclude tree from `:PackUpdate` |
 | `nvim-pack-lock.json` | `vim.pack` | Resolved git revisions |
 
-A real (non-symlink) directory already at the pack path is not overwritten.
+A real (non-link) directory already at the pack path is not overwritten.
 
 Returns `Pack.Handle`, or `nil` on validation failure. `Pack.register({})` is a no-op handle.
 

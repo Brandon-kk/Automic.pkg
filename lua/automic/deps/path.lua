@@ -1,4 +1,5 @@
 --- Resolve install path on packpath (prefer data/site/pack; session-cached)
+local platform = require("automic.util.platform")
 local cache = {}
 
 local function invalidate(name)
@@ -51,10 +52,10 @@ local function resolve(name)
 		return hit ~= false and hit or nil
 	end
 
-	-- Fast path: vim.pack default layout (includes symlinks to local/dev dirs)
-	local data_pack = vim.fn.stdpath("data") .. "/site/pack"
+	-- Fast path: vim.pack default layout (includes links to local/dev dirs)
+	local data_pack = platform.data_pack()
 	for _, kind in ipairs({ "opt", "start" }) do
-		local p = data_pack .. "/core/" .. kind .. "/" .. name
+		local p = vim.fs.joinpath(data_pack, "core", kind, name)
 		if vim.fn.isdirectory(p) == 1 then
 			cache[name] = p
 			return p
@@ -63,9 +64,11 @@ local function resolve(name)
 
 	-- Literal path lookup; avoid glob metacharacters
 	local paths = {}
+	local data_norm = platform.abspath(data_pack)
 	for _, root in ipairs(vim.opt.packpath:get()) do
 		for _, kind in ipairs({ "opt", "start" }) do
-			local matches = vim.fn.glob(root .. "/pack/*/" .. kind .. "/" .. name, false, true)
+			local pattern = vim.fs.joinpath(root, "pack", "*", kind, name)
+			local matches = vim.fn.glob(pattern, false, true)
 			for _, p in ipairs(matches) do
 				if vim.fs.basename(p) == name then
 					paths[#paths + 1] = p
@@ -78,7 +81,7 @@ local function resolve(name)
 		return nil
 	end
 	for _, p in ipairs(paths) do
-		if p:find(data_pack, 1, true) then
+		if platform.abspath(p):find(data_norm, 1, true) then
 			cache[name] = p
 			return p
 		end

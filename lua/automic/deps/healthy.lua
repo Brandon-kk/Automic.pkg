@@ -1,4 +1,5 @@
 --- Whether vim.pack plugin dir has a complete git repo (clone ok, HEAD usable)
+local platform = require("automic.util.platform")
 local cache = {}
 
 local function invalidate(path)
@@ -36,7 +37,7 @@ end
 ---@param dir string
 ---@return string|nil
 local function git_dir(dir)
-	local git = dir .. "/.git"
+	local git = vim.fs.joinpath(dir, ".git")
 	if vim.fn.isdirectory(git) == 1 then
 		return git
 	end
@@ -48,8 +49,8 @@ local function git_dir(dir)
 	if not gitdir then
 		return nil
 	end
-	if not vim.startswith(gitdir, "/") then
-		gitdir = dir .. "/" .. gitdir
+	if not platform.is_absolute(gitdir) then
+		gitdir = vim.fs.joinpath(dir, gitdir)
 	end
 	gitdir = vim.fs.normalize(gitdir)
 	if vim.fn.isdirectory(gitdir) == 1 then
@@ -62,14 +63,14 @@ end
 ---@param git string
 ---@return boolean
 local function head_usable(git)
-	local head = git .. "/HEAD"
+	local head = vim.fs.joinpath(git, "HEAD")
 	if vim.fn.filereadable(head) ~= 1 then
 		return false
 	end
 	local ref = vim.fn.readfile(head)[1] or ""
 	local branch = ref:match("^ref:%s*(.+)$")
 	if branch then
-		return vim.fn.filereadable(git .. "/" .. branch) == 1
+		return vim.fn.filereadable(vim.fs.joinpath(git, branch)) == 1
 	end
 	return ref:match("^%x+") ~= nil
 end
@@ -87,7 +88,7 @@ local function healthy(dir)
 
 	local git = git_dir(dir)
 	if not git then
-		local git_path = dir .. "/.git"
+		local git_path = vim.fs.joinpath(dir, ".git")
 		if vim.fn.filereadable(git_path) == 1 then
 			-- Broken worktree pointer
 			cache[dir] = false

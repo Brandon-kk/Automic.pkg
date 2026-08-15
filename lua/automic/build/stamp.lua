@@ -1,6 +1,7 @@
 --- build fingerprint stamp: kept under state (not in plugin dir; resists forged .build_done)
 --- Stamp tracks both the build definition and the package git HEAD so source
 --- updates invalidate even when the build callback bytecode is unchanged.
+local platform = require("automic.util.platform")
 local M = {}
 
 -- Session memo: fingerprint(build) and package_rev(dir) are hot on install fast path.
@@ -13,7 +14,7 @@ local function stamp_path(dir)
 	-- Path hash avoids stamp collisions for same basename under different packs
 	local key = vim.fn.sha256(vim.fs.normalize(dir)):sub(1, 16)
 	local name = vim.fs.basename(vim.fs.normalize(dir))
-	return vim.fn.stdpath("state") .. "/pack-hooks-build/" .. name .. "-" .. key .. ".stamp"
+	return platform.state_path("pack-hooks-build", name .. "-" .. key .. ".stamp")
 end
 
 --- Best-effort HEAD revision for a pack directory (empty when not a git checkout).
@@ -26,7 +27,7 @@ function M.package_rev(dir)
 		return cached
 	end
 
-	local git = dir .. "/.git"
+	local git = vim.fs.joinpath(dir, ".git")
 	local rev = ""
 	if vim.fn.isdirectory(git) ~= 1 then
 		if vim.fn.filereadable(git) ~= 1 then
@@ -39,8 +40,8 @@ function M.package_rev(dir)
 			rev_memo[dir] = ""
 			return ""
 		end
-		if not vim.startswith(gitdir, "/") then
-			gitdir = dir .. "/" .. gitdir
+		if not platform.is_absolute(gitdir) then
+			gitdir = vim.fs.joinpath(dir, gitdir)
 		end
 		git = vim.fs.normalize(gitdir)
 		if vim.fn.isdirectory(git) ~= 1 then
@@ -49,7 +50,7 @@ function M.package_rev(dir)
 		end
 	end
 
-	local head = git .. "/HEAD"
+	local head = vim.fs.joinpath(git, "HEAD")
 	if vim.fn.filereadable(head) ~= 1 then
 		rev_memo[dir] = ""
 		return ""
@@ -57,7 +58,7 @@ function M.package_rev(dir)
 	local ref = vim.fn.readfile(head)[1] or ""
 	local branch = ref:match("^ref:%s*(.+)$")
 	if branch then
-		local ref_path = git .. "/" .. branch
+		local ref_path = vim.fs.joinpath(git, branch)
 		if vim.fn.filereadable(ref_path) ~= 1 then
 			rev_memo[dir] = ""
 			return ""
