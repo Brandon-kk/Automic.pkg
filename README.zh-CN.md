@@ -79,7 +79,7 @@ Automic.pkg 会自行写入 `Pack.registry`。勿对 Automic.pkg 再次调用 `P
 ```lua
 Pack.boot("packages.configs")
   :options("core.options")
-  :keys("core.keymaps")
+  :keys("core.keymaps", " ")
   :commands("core.commands")
   :lsp("core.lsp")
   :autosave()
@@ -90,8 +90,8 @@ Pack.boot("packages.configs")
 | 调用 | 参数 | 类型 | 作用 |
 | --- | --- | --- | --- |
 | `Pack.boot` | `module` | `string?` | `stdpath("config")/lua` 下的声明模块目录 |
-| `:options` | `values` | `table` / `string` | `g` / `opt` / `diagnostic` |
-| `:keys` | `entries` | `table` / `string` | 键位；可选 `event` 回填 |
+| `:options` | `values` | `table` / `string` | 仅全局：`g` / `opt` / `diagnostic` / `hl`；`plugins` 为函数（或函数表），写第三方全局配置 API（不限于 `vim.g`）；拒绝 `wo`/`bo` |
+| `:keys` | `entries` [, `mapleader`] | `table` / `string` [, `string`] | 键位；可选第二参设置 `vim.g.mapleader`；条目可带 `event` 回填 |
 | `:commands` | `groups` | `table` / `string` | 具名 augroup |
 | `:lsp` | `enable` [, `disable`] | 见帮助 | filetype → server |
 | `:autosave` | `opts` | `boolean` / `table?` | 可选自动保存 |
@@ -210,9 +210,9 @@ Pack.register({
 | `ft` | `string` / `string[]` | `FileType` 模式触发 |
 | `colorscheme` | `string` / `string[]` / `true` | `:colorscheme` 触发；`true` 表示使用包名（若与 `module` 不同则两者皆可） |
 | `defer` | `boolean` | 仅当 `event = "UIEnter"` 时生效：延后一个 `vim.schedule` 再装载 |
-| `config` | `fun(plugin)` | `require(module)` 成功后调用；可通过 `setfenv` 读取 `var` 中的名字，**不能**直接读取 `utils` |
+| `config` | `fun(plugin)` / `table` | 只能 `plugin.setup(...)`（传入的 `plugin` 为仅含 `setup` 的代理）；或直接给 `setup` 的表。可读 `var`，**不能**读 `utils` |
 | `utils` | `table<string, string>` | 标识符 → 模块路径；装载时 `require`，仅注入 `var` 函数环境，不进入 `config` 环境 |
-| `var` | `table` | 供 `config` 与 `var` 内函数使用。返回值为表的函数仍可调用（`name()`），也可直接取字段，含嵌套（`name.field`、`name.a.b.c`）。条目 `{ use = true, callback = fun(plugin) }` 在 setup 成功后执行一次 |
+| `var` | `table` | 供 `config` 与 `var` 内函数使用。返回值为表的函数仍可调用（`name()`），也可直接取字段，含嵌套（`name.field`、`name.a.b.c`）。条目 `{ use = true, callback = fun(plugin) }` 在 setup 成功后执行一次。插件的 `vim.g` 全局项请写在 `:options`，不要写在 `config` |
 
 触发装载成功后，将重放激活事件，使装载期间注册的 autocmd 能够观测到该事件（`FileType` → `BufReadPost` → `BufReadPre`）。无 augroup 的 `BufRead*` 不会被选择性重放。
 

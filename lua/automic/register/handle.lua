@@ -65,9 +65,9 @@ end
 ---@param name string
 ---@return boolean ok
 local function validate_setup_fields(opts, name)
-	if opts.config ~= nil and type(opts.config) ~= "function" then
+	if opts.config ~= nil and type(opts.config) ~= "function" and type(opts.config) ~= "table" then
 		vim.notify(
-			"Pack.handle(" .. name .. "): config must be a function",
+			"Pack.handle(" .. name .. "): config must be a function or setup options table",
 			vim.log.levels.ERROR
 		)
 		return false

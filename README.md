@@ -72,7 +72,7 @@ Automic.pkg registers itself into `Pack.registry`. Do not call `Pack.register()`
 ```lua
 Pack.boot("packages.configs")
   :options("core.options")
-  :keys("core.keymaps")
+  :keys("core.keymaps", " ")
   :commands("core.commands")
   :lsp("core.lsp")
   :autosave()
@@ -82,8 +82,8 @@ Pack.boot("packages.configs")
 | Call | Argument | Type | Role |
 | ---- | -------- | ---- | ---- |
 | `Pack.boot` | `module` | `string?` | Directory of declaration modules under `stdpath("config")/lua` |
-| `:options` | `values` | `table` / `string` | `g` / `opt` / `diagnostic` |
-| `:keys` | `entries` | `table` / `string` | Keymaps; optional `event` backfill |
+| `:options` | `values` | `table` / `string` | Global only: `g` / `opt` / `diagnostic` / `hl`; `plugins` is a function (or map of functions) for third-party global config APIs (not limited to `vim.g`); `wo`/`bo` rejected |
+| `:keys` | `entries` [, `mapleader`] | `table` / `string` [, `string`] | Keymaps; optional 2nd arg sets `vim.g.mapleader`; optional `event` backfill |
 | `:commands` | `groups` | `table` / `string` | Named augroups |
 | `:lsp` | `enable` [, `disable`] | see help | Filetype → server mapping |
 | `:autosave` | `opts` | `boolean` / `table?` | Opt-in autosave |
@@ -193,7 +193,7 @@ Returns `Pack.Handle`, or `nil` on validation failure. `Pack.register({})` is a 
 | `ft` | `string` / `string[]` | `FileType` pattern(s) |
 | `colorscheme` | `string` / `string[]` / `true` | Trigger on `:colorscheme`; `true` uses the pack name (and `module` when distinct) |
 | `defer` | `boolean` | Only with `event = "UIEnter"`: load on the next `vim.schedule` turn |
-| `config` | `fun(plugin)` | Called after `require(module)`; may read names from `var` via `setfenv`; does **not** see `utils` |
+| `config` | `fun(plugin)` / `table` | Setup-only: call `plugin.setup(...)` on a setup-only proxy, or pass a table to `setup`. May read `var` via `setfenv`; does **not** see `utils` |
 | `utils` | `table<string, string>` | Identifier → module path; required at load; injected into the `var` environment only |
 | `var` | `table` | Environment for `config` and `var` functions. A function that returns a table stays callable (`name()`) and can be indexed, including nested fields (`name.field`, `name.a.b.c`). Entry `{ use = true, callback = fun(plugin) }` runs once after successful setup |
 

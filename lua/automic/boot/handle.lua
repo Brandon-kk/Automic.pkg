@@ -60,9 +60,10 @@ function M.new(config)
 end
 
 ---@param entries table|string
+---@param mapleader? string Optional |vim.g.mapleader|; set before keymaps when provided
 ---@return Pack.BootHandle self
-function M:keys(entries)
-	require("automic.boot.core").keys(entries)
+function M:keys(entries, mapleader)
+	require("automic.boot.core").keys(entries, mapleader)
 	return self
 end
 

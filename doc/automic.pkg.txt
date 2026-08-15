@@ -115,13 +115,13 @@ Pack.boot({module?})
 					declaration files (see
 					|automic.pkg-boot-layout|).
 
-	Method		Argument		Type ~
-	:options()	{values}		table|string
-	:keys()		{entries}		table|string
-	:commands()	{groups}		table|string
-	:lsp()		{enable}[, {disable}]	see |Pack.boot.lsp()|
-	:autosave()	{opts?}			boolean|table
-	:run()		—			—
+	Method		Argument			Type ~
+	:options()	{values}			table|string
+	:keys()		{entries}[, {mapleader}]	table|string [, string]
+	:commands()	{groups}			table|string
+	:lsp()		{enable}[, {disable}]		see |Pack.boot.lsp()|
+	:autosave()	{opts?}				boolean|table
+	:run()		—				—
 
 	String arguments name a Lua module that returns a table. Table
 	arguments are used inline.
@@ -141,15 +141,45 @@ Declaration directory: ~
 						*Pack.boot.options()*
 :options({values})
 
-	Field		Type		Assignment ~
-	g		table		|vim.g|
-	opt		table		|vim.opt|
-	diagnostic	table		|vim.diagnostic.config()|
+	Global configuration only. Window/buffer-local tables (`wo` / `bo`)
+	are rejected; put defaults in `opt` instead.
+
+	Field		Type			Assignment ~
+	g		table			|vim.g|
+	opt		table			|vim.opt| (global defaults)
+	hl		table			|nvim_set_hl()| namespace 0;
+					string value = `{ link = ... }`;
+					re-applied on |ColorScheme|
+	diagnostic	table			|vim.diagnostic.config()|
+	plugins		fun|table		Run last. Function (or map of
+					functions) for third-party
+					global config APIs — not limited
+					to |vim.g| (e.g. `vim.g`,
+					`vim.filetype`, plugin globals).
+
+	Application order: g → opt → diagnostic → hl → plugins.
+
+	Example: ~
+>
+	:options({
+	  g = { mapleader = " " },
+	  opt = { number = true },
+	  plugins = function()
+	    vim.g.my_plugin = { a = "xxx" }
+	    vim.filetype.add({ extension = { foo = "fooscript" } })
+	  end,
+	})
+<
+
 
 						*Pack.boot.keys()*
-:keys({entries})
+:keys({entries}, {mapleader?})
 
 	Each entry: `{ mode, lhs, rhs, opts? }` (|vim.keymap.set()|).
+
+	Optional {mapleader} (string) sets |vim.g.mapleader| before any
+	mappings are created. Omit it to leave leader unchanged (configure
+	via |Pack.boot.options()| `g.mapleader` or elsewhere).
 
 	When {opts}.event is set, the mapping is attached as a buffer-local
 	|autocmd| for |ev.buf|. Autocmd fields consumed from {opts}: `event`,
@@ -371,10 +401,14 @@ handle:load({opts?})
 	defer		boolean			Only with `event = "UIEnter"`:
 						load on the next
 						|vim.schedule| turn.
-	config		fun(plugin)		After |require|(`module`).
-						May read `var` names via
-						|setfenv|; does not see
-						`utils`.
+	config		fun(plugin)|table	Setup-only. Function receives a
+						proxy that only allows
+						`plugin.setup(...)`. A table
+						is passed directly to `setup`.
+						May read `var` via |setfenv|;
+						does not see `utils`. Plugin
+						|vim.g| knobs belong in
+						|Pack.boot.options()|.
 	utils		table			Identifier → module path.
 						Required at load; injected
 						into the `var` environment

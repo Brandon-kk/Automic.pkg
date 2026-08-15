@@ -209,7 +209,16 @@ local function backfill_all(rules)
 end
 
 ---@param entries table|string
-function M.keys(entries)
+---@param mapleader? string Optional leader; when set, assigns |vim.g.mapleader| before keymaps
+function M.keys(entries, mapleader)
+	if mapleader ~= nil then
+		if type(mapleader) ~= "string" then
+			vim.notify("Pack.boot:keys: mapleader must be a string", vim.log.levels.ERROR)
+		else
+			vim.g.mapleader = mapleader
+		end
+	end
+
 	entries = resolve(entries, "keys")
 	if not entries then
 		return
@@ -297,12 +306,116 @@ function M.commands(groups)
 	end
 end
 
+---@param name string
+---@param value any
+local function set_opt_key(name, value)
+	local ok, err = pcall(function()
+		vim.opt[name] = value
+	end)
+	if not ok then
+		vim.notify(
+			"Pack.boot:options: failed to set opt." .. tostring(name) .. "\n" .. tostring(err),
+			vim.log.levels.ERROR
+		)
+	end
+end
+
+---@param hl table<string, table|string>
+local function apply_highlights(hl)
+	for name, spec in pairs(hl) do
+		local ok, err = pcall(function()
+			if type(spec) == "string" then
+				vim.api.nvim_set_hl(0, name, { link = spec })
+			elseif type(spec) == "table" then
+				vim.api.nvim_set_hl(0, name, spec)
+			else
+				error("highlight value must be a table or link string")
+			end
+		end)
+		if not ok then
+			vim.notify(
+				"Pack.boot:options: failed to set hl." .. tostring(name) .. "\n" .. tostring(err),
+				vim.log.levels.ERROR
+			)
+		end
+	end
+end
+
+--- Global-only boot options: g / opt / diagnostic / hl / plugins.
+--- `plugins` is a function (or map of functions) for third-party global config APIs
+--- (vim.g, vim.filetype, etc.) — not limited to vim.g.
+local CORE = {
+	g = true,
+	opt = true,
+	diagnostic = true,
+	hl = true,
+	plugins = true,
+}
+
+local REJECT = {
+	wo = true,
+	bo = true,
+	ui = true,
+	api = true,
+}
+
+---@param plugins fun()|table<any, fun()>
+local function run_plugins(plugins)
+	if type(plugins) == "function" then
+		local ok, err = pcall(plugins)
+		if not ok then
+			vim.notify("Pack.boot:options: plugins() failed\n" .. tostring(err), vim.log.levels.ERROR)
+		end
+		return
+	end
+	if type(plugins) ~= "table" then
+		vim.notify(
+			"Pack.boot:options: plugins must be a function or table of functions",
+			vim.log.levels.ERROR
+		)
+		return
+	end
+	for key, fn in pairs(plugins) do
+		if type(fn) == "function" then
+			local ok, err = pcall(fn)
+			if not ok then
+				vim.notify(
+					"Pack.boot:options: plugins." .. tostring(key) .. " failed\n" .. tostring(err),
+					vim.log.levels.ERROR
+				)
+			end
+		else
+			vim.notify(
+				"Pack.boot:options: plugins." .. tostring(key) .. " must be a function",
+				vim.log.levels.ERROR
+			)
+		end
+	end
+end
+
 ---@param values table|string
 function M.options(values)
 	values = resolve(values, "options")
 	if not values then
 		return
 	end
+
+	for key in pairs(values) do
+		if REJECT[key] then
+			local hint = (key == "wo" or key == "bo")
+					and "window/buffer-local options are not allowed; put global defaults in opt"
+				or "`" .. key .. "` is not a global options field; use plugins = function() ... end"
+			vim.notify("Pack.boot:options: `" .. tostring(key) .. "` rejected — " .. hint, vim.log.levels.ERROR)
+		elseif not CORE[key] then
+			vim.notify(
+				"Pack.boot:options: `"
+					.. tostring(key)
+					.. "` rejected — unknown field (allowed: g, opt, diagnostic, hl, plugins)",
+				vim.log.levels.ERROR
+			)
+		end
+	end
+
 	if values.g ~= nil then
 		if type(values.g) ~= "table" then
 			vim.notify("Pack.boot:options: g must be a table", vim.log.levels.ERROR)
@@ -317,7 +430,7 @@ function M.options(values)
 			vim.notify("Pack.boot:options: opt must be a table", vim.log.levels.ERROR)
 		else
 			for name, value in pairs(values.opt) do
-				vim.opt[name] = value
+				set_opt_key(name, value)
 			end
 		end
 	end
@@ -327,6 +440,25 @@ function M.options(values)
 		else
 			vim.diagnostic.config(values.diagnostic)
 		end
+	end
+	if values.hl ~= nil then
+		if type(values.hl) ~= "table" then
+			vim.notify("Pack.boot:options: hl must be a table", vim.log.levels.ERROR)
+		else
+			-- Global namespace 0; re-apply after colorscheme clears highlights.
+			local hl = vim.deepcopy(values.hl)
+			apply_highlights(hl)
+			vim.api.nvim_create_autocmd("ColorScheme", {
+				group = vim.api.nvim_create_augroup("PackBootHighlights", { clear = true }),
+				desc = "Pack.boot:options: re-apply hl after colorscheme",
+				callback = function()
+					apply_highlights(hl)
+				end,
+			})
+		end
+	end
+	if values.plugins ~= nil then
+		run_plugins(values.plugins)
 	end
 end
 

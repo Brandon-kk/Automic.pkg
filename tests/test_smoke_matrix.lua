@@ -621,10 +621,13 @@ return function()
 		local core = require("automic.boot.core")
 		core.options({
 			g = { smoke_opt_g = 1 },
-			opt = {},
+			opt = { showmode = false },
+			hl = { SmokeBootHl = { bold = true } },
 		})
 		H.eq(vim.g.smoke_opt_g, 1, "J01 options sets vim.g")
 		vim.g.smoke_opt_g = nil
+		pcall(vim.api.nvim_del_augroup_by_name, "PackBootHighlights")
+		pcall(vim.api.nvim_set_hl, 0, "SmokeBootHl", {})
 
 		core.commands({
 			SmokeBootCmdGroup = {

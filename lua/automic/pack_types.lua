@@ -66,7 +66,7 @@
 ---@field defer? boolean Run `UIEnter` loads via vim.schedule when true (default false); ignored for other events
 ---@field utils? table<string, string> Extra requires injected into var only, not config; values are module paths required at runtime
 ---@field var? table<string, any> Data or methods; a function that returns a table can be indexed (`name.field`, `name.a.b.c`) and still called (`name()`); `{ use=true, callback=fun(plugin: any): any }` runs once after setup
----@field config? fun(plugin: any, ...: any): any Setup only; may call var but not utils directly
+---@field config? fun(plugin: any)|table Setup-only: a function that may only call `plugin.setup(...)`, or a table passed to `setup`
 ---@field ft? string|string[] Load on FileType; mutually exclusive with other triggers
 ---@field cmd? string|string[] Load on user command (shared across packs); mutually exclusive with other triggers
 ---@field keys? string|table Load on keypress (shared across packs). Function `rhs` receives the plugin module first
@@ -82,7 +82,7 @@
 ---@class Pack.LazyOpts
 ---@field utils? table<string, string> Extra requires injected into var only, not config
 ---@field var? table<string, any> Values/methods; a function that returns a table can be indexed (`name.field`, `name.a.b.c`) and still called (`name()`); `{ use=true, callback=fun(plugin: any): any }` runs once after setup
----@field config? fun(plugin: any, ...: any): any Setup callback; receives the required Lua module
+---@field config? fun(plugin: any)|table Setup-only: function may only call `plugin.setup(...)`, or a table passed to `setup`
 
 ---@class Pack.Handle
 ---@field load fun(self: Pack.Handle, opts?: Pack.LoadOpts): Pack.Handle
@@ -91,9 +91,9 @@
 ---@class Pack.BootHandle
 ---@field _config? string
 ---@field _ran boolean
----@field keys fun(self: Pack.BootHandle, entries: table|string): Pack.BootHandle Apply keymaps or load a module returning keymap entries
+---@field keys fun(self: Pack.BootHandle, entries: table|string, mapleader?: string): Pack.BootHandle Apply keymaps or load a module returning keymap entries; optional mapleader sets vim.g.mapleader first
 ---@field commands fun(self: Pack.BootHandle, groups: table|string): Pack.BootHandle Create named autocmd groups or load them from a module
----@field options fun(self: Pack.BootHandle, values: table|string): Pack.BootHandle Apply g/opt/diagnostic settings or load them from a module
+---@field options fun(self: Pack.BootHandle, values: table|string): Pack.BootHandle Apply global g/opt/diagnostic/hl/plugins settings or load them from a module
 ---@field lsp fun(self: Pack.BootHandle, enable?: table|string, disable?: string[]|string): Pack.BootHandle Configure enabled and disabled LSP servers
 ---@field autosave fun(self: Pack.BootHandle, opts?: boolean|Pack.AutosaveOpts): Pack.BootHandle Opt-in InsertLeave/TextChanged autosave; pass false to disable
 ---@field run fun(self: Pack.BootHandle): Pack Run package declaration boot immediately
@@ -104,6 +104,15 @@
 ---@field ft? string|string[] Filetypes to exclude
 ---@field buftype? string|string[] Buftypes to exclude (empty buftype is required to save; non-empty is always skipped)
 ---@field filename? string|string[] Glob patterns matched against buffer name; matches are excluded
+
+--- Global-only options for Pack.boot():options({ ... }) / options module return.
+--- Window/buffer locals (vim.wo / vim.bo) are not accepted; use opt for global defaults.
+---@class Pack.BootOptions
+---@field g? table<string, any> |vim.g| assignments
+---@field opt? table<string, any> |vim.opt| assignments (global defaults, including for window/buffer-scoped options)
+---@field hl? table<string, table|string> Global highlights via |nvim_set_hl()| (namespace 0); string values are `{ link = ... }`; re-applied on |ColorScheme|
+---@field diagnostic? table Passed to |vim.diagnostic.config()|
+---@field plugins? fun()|table<any, fun()> Run last: third-party global config APIs (not limited to vim.g), e.g. vim.g / vim.filetype / plugin globals
 
 --- User-facing Pack API only (internals omitted so Pack. completion stays clean)
 ---@class Pack

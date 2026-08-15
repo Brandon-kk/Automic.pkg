@@ -19,6 +19,7 @@ local suites = {
 	"tests.test_load_rules",
 	"tests.test_autosave",
 	"tests.test_boot_keys",
+	"tests.test_boot_options",
 	"tests.test_smoke_matrix",
 	"tests.test_local_health",
 	"tests.test_build_fresh",
