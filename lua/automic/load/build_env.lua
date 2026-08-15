@@ -7,6 +7,25 @@ local function valid_key(key)
 	return type(key) == "string" and key:match("^[%a_][%w_]*$") ~= nil and not RESERVED[key]
 end
 
+--- Keep `name()` working, and allow `name.field` when the call returns a table.
+---@param fn function
+local function allow_result_index(fn)
+	local cached ---@type table|nil
+	debug.setmetatable(fn, {
+		__index = function(self, key)
+			if not cached then
+				local ok, result = pcall(self)
+				if ok and type(result) == "table" then
+					cached = result
+				else
+					return nil
+				end
+			end
+			return cached[key]
+		end,
+	})
+end
+
 ---@class Pack.VarUse
 ---@field name string
 ---@field callback function
@@ -71,6 +90,7 @@ local function build(utils, var)
 		for _, v in pairs(var) do
 			if type(v) == "function" then
 				setfenv(v, var_env)
+				allow_result_index(v)
 			elseif type(v) == "table" and v.use == true and type(v.callback) == "function" then
 				setfenv(v.callback, var_env)
 			end

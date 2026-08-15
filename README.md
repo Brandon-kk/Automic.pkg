@@ -195,7 +195,7 @@ Returns `Pack.Handle`, or `nil` on validation failure. `Pack.register({})` is a 
 | `defer` | `boolean` | Only with `event = "UIEnter"`: load on the next `vim.schedule` turn |
 | `config` | `fun(plugin)` | Called after `require(module)`; may read names from `var` via `setfenv`; does **not** see `utils` |
 | `utils` | `table<string, string>` | Identifier → module path; required at load; injected into the `var` environment only |
-| `var` | `table` | Environment for `config` and `var` functions. Entry `{ use = true, callback = fun(plugin) }` runs once after successful setup |
+| `var` | `table` | Environment for `config` and `var` functions. A function that returns a table stays callable (`name()`) and can be indexed, including nested fields (`name.field`, `name.a.b.c`). Entry `{ use = true, callback = fun(plugin) }` runs once after successful setup |
 
 After trigger load, the activating event is re-executed so autocmds registered during load observe it (`FileType` → `BufReadPost` → `BufReadPre`). Group-less `BufRead*` handlers are not selectively re-fired.
 

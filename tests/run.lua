@@ -22,6 +22,7 @@ local suites = {
 	"tests.test_smoke_matrix",
 	"tests.test_local_health",
 	"tests.test_build_fresh",
+	"tests.test_build_env",
 }
 
 for _, mod in ipairs(suites) do

@@ -212,7 +212,7 @@ Pack.register({
 | `defer` | `boolean` | 仅当 `event = "UIEnter"` 时生效：延后一个 `vim.schedule` 再装载 |
 | `config` | `fun(plugin)` | `require(module)` 成功后调用；可通过 `setfenv` 读取 `var` 中的名字，**不能**直接读取 `utils` |
 | `utils` | `table<string, string>` | 标识符 → 模块路径；装载时 `require`，仅注入 `var` 函数环境，不进入 `config` 环境 |
-| `var` | `table` | 供 `config` 与 `var` 内函数使用。条目 `{ use = true, callback = fun(plugin) }` 在 setup 成功后执行一次 |
+| `var` | `table` | 供 `config` 与 `var` 内函数使用。返回值为表的函数仍可调用（`name()`），也可直接取字段，含嵌套（`name.field`、`name.a.b.c`）。条目 `{ use = true, callback = fun(plugin) }` 在 setup 成功后执行一次 |
 
 触发装载成功后，将重放激活事件，使装载期间注册的 autocmd 能够观测到该事件（`FileType` → `BufReadPost` → `BufReadPre`）。无 augroup 的 `BufRead*` 不会被选择性重放。
 

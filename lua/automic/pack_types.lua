@@ -65,7 +65,7 @@
 ---@field event? Pack.AutocmdEvent|Pack.AutocmdEvent[] Trigger event; mutually exclusive with other triggers; omit with no triggers for immediate load
 ---@field defer? boolean Run `UIEnter` loads via vim.schedule when true (default false); ignored for other events
 ---@field utils? table<string, string> Extra requires injected into var only, not config; values are module paths required at runtime
----@field var? table<string, any> Any data or methods; `{ use=true, callback=fun(plugin: any): any }` runs once after setup
+---@field var? table<string, any> Data or methods; a function that returns a table can be indexed (`name.field`, `name.a.b.c`) and still called (`name()`); `{ use=true, callback=fun(plugin: any): any }` runs once after setup
 ---@field config? fun(plugin: any, ...: any): any Setup only; may call var but not utils directly
 ---@field ft? string|string[] Load on FileType; mutually exclusive with other triggers
 ---@field cmd? string|string[] Load on user command (shared across packs); mutually exclusive with other triggers
@@ -81,7 +81,7 @@
 --- :lazy() options. Only config / utils / var; triggers belong on :load().
 ---@class Pack.LazyOpts
 ---@field utils? table<string, string> Extra requires injected into var only, not config
----@field var? table<string, any> Values/methods; `{ use=true, callback=fun(plugin: any): any }` runs once after setup
+---@field var? table<string, any> Values/methods; a function that returns a table can be indexed (`name.field`, `name.a.b.c`) and still called (`name()`); `{ use=true, callback=fun(plugin: any): any }` runs once after setup
 ---@field config? fun(plugin: any, ...: any): any Setup callback; receives the required Lua module
 
 ---@class Pack.Handle

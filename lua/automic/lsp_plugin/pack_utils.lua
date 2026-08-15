@@ -6,7 +6,7 @@
 ---
 --- Completion strategy:
 ---   utils: `name = require(path)` inside if-false → completion for module fields and methods
----   var calls: `---@type fun(...): any` inside if-false → calls with arbitrary arguments remain valid
+---   var calls: callable table (`Pack.VarFn`) inside if-false → `name()` and `name.field` both valid
 ---   var parameters: source `---@param name T` (without a narrow `---@type fun(...)`) → completion for name. in the body
 ---
 --- Attached when Pack.boot():lsp() activates → ensure_lua_ls_plugin
@@ -352,6 +352,7 @@ function OnSetText(uri, text)
 
 	local stub = {
 		"---@diagnostic disable: undefined-global,undefined-field,unused-local,unused-function,unused-vararg,lowercase-global,missing-return,redundant-return-value,redundant-parameter,missing-parameter,param-type-mismatch,assign-type-mismatch,return-type-mismatch,cast-local-type,need-check-nil,missing-fields,inject-field,empty-block\n",
+		"---@class Pack.VarFn\n---@operator call: any\n---@field [any] any\n",
 	}
 
 	local refs = {}
@@ -364,14 +365,16 @@ function OnSetText(uri, text)
 		body[#body + 1] = ("  %s = require(%q)\n"):format(name, path)
 	end
 
-	-- var: use fun(...): any at call sites for arbitrary arguments; use any for non-functions
+	-- var: callable table so name() and name.field are both valid; use any for non-functions
 	for block in text:gmatch("var%s*=%s*(%b{})") do
 		for _, name in ipairs(top_level_keys(block)) do
 			if not seen[name] then
 				seen[name] = true
 				refs[#refs + 1] = name
 				if is_top_level_fn(block, name) then
-					body[#body + 1] = ("  ---@type fun(...): any\n  %s = function(...) return nil end\n"):format(name)
+					body[#body + 1] = ("  ---@type Pack.VarFn\n  %s = setmetatable({}, { __call = function(...) end })\n"):format(
+						name
+					)
 				else
 					body[#body + 1] = ("  ---@type any\n  %s = {}\n"):format(name)
 				end
