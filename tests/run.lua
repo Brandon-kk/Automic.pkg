@@ -23,6 +23,8 @@ local suites = {
 	"tests.test_smoke_matrix",
 	"tests.test_local_health",
 	"tests.test_build_fresh",
+	"tests.test_build_ready",
+	"tests.test_build_contract",
 	"tests.test_build_env",
 }
 

@@ -85,7 +85,7 @@ Pack.register({
 | `dev = true` | 将本地根解析为 `vim.g.automic_dev_path/<name>` |
 | `dependencies` | 依赖包列表 |
 | `cond` | 为 `false`（或函数返回 `false`）时跳过安装与装载 |
-| `build` | 安装或更新后执行的命令、参数列表或函数 |
+| `build` | 安装/更新后执行；function/shell 在 `config` 前同步完成且仅成功才盖章；`:Vim` 在 init 后执行 |
 | `lock = true` | `:PackUpdate` 时排除该包及其依赖树 |
 
 本地包：

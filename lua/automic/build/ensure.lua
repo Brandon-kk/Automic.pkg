@@ -1,19 +1,13 @@
---- If build exists and not yet built, trigger build
+--- If build exists and not yet built, trigger build (async).
+---
+--- Pre-config builds (function / shell): prefer automic.build.ready before config.
+--- This module is for:
+---   - :Vim builds after Pack.inited
+---   - install/update batch (via cmds + batch)
+---   - opportunistic background rebuild when stamp is stale
 local stamp = require("automic.build.stamp")
 local retry = require("automic.build.retry")
-
---- :Vim build commands must run after plugin init
----@param build string|string[]|function
----@return boolean
-local function is_vim_cmd(build)
-	if type(build) == "string" and build:sub(1, 1) == ":" then
-		return true
-	end
-	if type(build) == "table" and type(build[1]) == "string" and build[1]:sub(1, 1) == ":" then
-		return true
-	end
-	return false
-end
+local kind = require("automic.build.kind")
 
 ---@param name string
 ---@param build string|string[]|function
@@ -23,7 +17,8 @@ return function(name, build)
 	if Pack.disabled[name] or not build then
 		return
 	end
-	if is_vim_cmd(build) and not Pack.inited[name] then
+	-- :Vim builds need plugin commands registered during config/init.
+	if kind.is_vim_cmd(build) and not Pack.inited[name] then
 		return
 	end
 	local dir = Pack.path(name)

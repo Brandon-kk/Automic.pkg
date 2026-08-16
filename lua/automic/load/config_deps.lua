@@ -3,6 +3,7 @@ local notify_once = require("automic.util.notify_once")
 local require_utils = require("automic.load.require_utils")
 local call_config = require("automic.load.call_config")
 local norm = require("automic.deps.norm")
+local ready = require("automic.build.ready")
 local ensure = require("automic.build.ensure")
 
 ---@param item table
@@ -25,6 +26,17 @@ local function run_config(item, allow_startup)
 		)
 		return done(false, "missing module")
 	end
+
+	-- Function/shell builds before require/config (same contract as Pack.handle).
+	if not ready(item.name, item.build) then
+		notify_once(
+			"dep:build:" .. item.name,
+			"dependency build not ready: " .. item.name,
+			vim.log.levels.ERROR
+		)
+		return done(false, "build not ready")
+	end
+
 	local mod_ok, mod = pcall(require, item.module)
 	if not mod_ok then
 		notify_once(
@@ -54,6 +66,7 @@ local function run_config(item, allow_startup)
 		return done(false, "config failed")
 	end
 	_G.Pack.inited[item.name] = true
+	-- :Vim builds only (preconfig already stamped by ready)
 	ensure(item.name, item.build)
 	return done(true)
 end

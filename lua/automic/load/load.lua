@@ -1,9 +1,11 @@
 --- Load plugin: dependencies → packadd (config runs from :load after utils/var are ready)
+---
+--- Pre-config builds (function/shell) are gated by automic.build.ready in :load/config_deps,
+--- not fire-and-forget ensure() here (that races with config).
 local notify_once = require("automic.util.notify_once")
 local cycle = require("automic.deps.cycle")
 local prepare = require("automic.load.prepare")
 local load_dep = require("automic.load.load_dep")
-local ensure = require("automic.build.ensure")
 
 ---@param P table
 ---@param allow_startup? boolean
@@ -45,7 +47,6 @@ return function(P, allow_startup)
 		return true
 	end
 
-	ensure(P.name, P.build)
 	if P.dependencies then
 		for _, dep in ipairs(P.dependencies) do
 			if not load_dep(dep, P.name, { [P.name] = true }, { allow_startup = allow_startup }) then

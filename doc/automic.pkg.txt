@@ -201,7 +201,20 @@ validation failure. `Pack.register({})` is a no-op.
 			installation and load
 	build		Executed after install/update: Ex command
 			(e.g. `:TSUpdate`), argv list
-			(`{ "cmd", "arg" }`), or function
+			(`{ "cmd", "arg" }`), or function.
+
+			Build contract (all plugins): ~
+			• function / shell	Must succeed before `config` /
+					`require` (Pack waits and only
+					stamps on real success).
+					`return false, err` and returned
+					Task-like `{ wait = … }` are
+					honored.
+			• :Vim command	Runs after the plugin is inited
+					(needs plugin commands).
+			Stamp tracks build fingerprint + git HEAD;
+			failures clear the stamp so the next load
+			retries. Use |:PackReBuild| to force.
 	lock		When true, exclude from |:PackUpdate|
 			(default true for `path` / `dev`)
 

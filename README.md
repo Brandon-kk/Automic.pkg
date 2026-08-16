@@ -90,7 +90,7 @@ Pack.register({
 | `dev = true` | Resolve local root as `vim.g.automic_dev_path/<name>` |
 | `dependencies` | Dependent packages |
 | `cond` | When `false` (or a function returning `false`), skip installation and load |
-| `build` | Command, argument list, or function executed after install or update |
+| `build` | After install/update; function/shell finish successfully before `config` (stamped only on success); `:Vim` runs after init |
 | `lock = true` | Exclude this package and its dependency tree from `:PackUpdate` |
 
 Local package:

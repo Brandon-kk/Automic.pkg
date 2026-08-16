@@ -1,6 +1,6 @@
 local notify_once = require("automic.util.notify_once")
 local norm = require("automic.deps.norm")
-local ensure = require("automic.build.ensure")
+local ready = require("automic.build.ready")
 
 local load_dep
 
@@ -62,10 +62,18 @@ load_dep = function(dep, consumer_name, stack, opts)
 	end
 
 	if Pack.loaded[item.name] then
+		-- Still gate preconfig builds: a prior packadd may have skipped build.
+		if not ready(item.name, item.build) then
+			notify_once(
+				"dep:build:" .. item.name,
+				"dependency build not ready: " .. item.name .. " (from " .. (consumer_name or "?") .. ")",
+				vim.log.levels.ERROR
+			)
+			return done(false, "build not ready")
+		end
 		return done(true, "already loaded")
 	end
 
-	ensure(item.name, item.build)
 	local dep_ok = pcall(vim.cmd.packadd, item.name)
 	if not dep_ok then
 		notify_once(
@@ -77,6 +85,16 @@ load_dep = function(dep, consumer_name, stack, opts)
 	end
 
 	Pack.loaded[item.name] = true
+	if not ready(item.name, item.build) then
+		Pack.loaded[item.name] = nil
+		notify_once(
+			"dep:build:" .. item.name,
+			"dependency build not ready: " .. item.name .. " (from " .. (consumer_name or "?") .. ")",
+			vim.log.levels.ERROR
+		)
+		return done(false, "build not ready")
+	end
+
 	notify_once.clear("dep:missing:" .. item.name)
 	notify_once.clear("dep:packadd:" .. item.name)
 	return done(true)

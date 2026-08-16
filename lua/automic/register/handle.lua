@@ -13,6 +13,7 @@ local function modules()
 		pack_load = require("automic.load.load"),
 		config_deps = require("automic.load.config_deps"),
 		ensure = require("automic.build.ensure"),
+		ready = require("automic.build.ready"),
 		require_utils = require("automic.load.require_utils"),
 		build_env = require("automic.load.build_env"),
 		call_config = require("automic.load.call_config"),
@@ -264,6 +265,19 @@ function M:_apply(opts, mode)
 
 			if not R.pack_load(P, allow_startup) then
 				done(false, "packadd failed")
+				return
+			end
+
+			-- Function/shell builds must finish before config (any plugin, not a special case).
+			-- :Vim builds still run via ensure after Pack.inited.
+			if not R.ready(P.name, P.build) then
+				Pack.loaded[P.name] = nil
+				R.notify_once(
+					"handle:build:" .. P.name,
+					"Pack.handle:load(" .. P.name .. "): build not ready",
+					vim.log.levels.ERROR
+				)
+				done(false, "build not ready")
 				return
 			end
 
