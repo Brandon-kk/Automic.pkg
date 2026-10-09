@@ -11,16 +11,20 @@
 ---@return table
 return function(dep)
 	local Pack = _G.Pack
+	local source = require("automic.deps.source")
 	if type(dep) == "string" then
-		local name = Pack.parse(dep)
+		local url = source.expand(dep, Pack.source_method)
 		return {
-			spec = { src = dep },
-			name = name,
+			spec = { src = url },
+			name = Pack.parse(url),
 		}
 	end
 
 	if type(dep) ~= "table" then
 		error("dep must be string or table: " .. vim.inspect(dep))
+	end
+	if dep.method ~= nil then
+		error('dep.method is not supported; configure method once in Pack.boot(config, { method = "git"|"http" })')
 	end
 
 	if dep.setup ~= nil then
@@ -49,6 +53,11 @@ return function(dep)
 		spec = { src = src, name = dep.name, version = dep.version }
 	else
 		error("dep table must have [1] URL, src, or spec={src=...}: " .. vim.inspect(dep))
+	end
+
+	-- Expand GitHub shorthand ("owner/repo") using the boot-level clone method.
+	if type(spec.src) == "string" and spec.src ~= "" then
+		spec = vim.tbl_extend("force", spec, { src = source.expand(spec.src, Pack.source_method) })
 	end
 
 	local name = dep.name and Pack.parse(dep.name) or Pack.parse(spec)

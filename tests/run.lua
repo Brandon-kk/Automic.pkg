@@ -15,6 +15,7 @@ local suites = {
 	"tests.test_triggers",
 	"tests.test_event_replay",
 	"tests.test_colorscheme",
+	"tests.test_source",
 	"tests.test_ensure",
 	"tests.test_load_rules",
 	"tests.test_autosave",

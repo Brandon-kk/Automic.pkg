@@ -51,8 +51,21 @@ function M.__index(self, key)
 end
 
 ---@param config? string
+---@param opts? Pack.BootOpts
 ---@return Pack.BootHandle
-function M.new(config)
+function M.new(config, opts)
+	local Pack = _G.Pack
+	if opts ~= nil then
+		if type(opts) ~= "table" then
+			vim.notify('Pack.boot: opts must be a table, e.g. { method = "git" }', vim.log.levels.ERROR)
+		elseif opts.method ~= nil and opts.method ~= "git" and opts.method ~= "http" then
+			vim.notify('Pack.boot: method must be "git" (default, SSH) or "http" (HTTPS)', vim.log.levels.ERROR)
+		elseif opts.method ~= nil then
+			-- Apply before :run() loads plugin declarations, so every register shorthand
+			-- (including dependency strings) expands consistently.
+			Pack.source_method = opts.method
+		end
+	end
 	return setmetatable({
 		_config = config,
 		_ran = false,

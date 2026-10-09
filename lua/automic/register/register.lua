@@ -1,10 +1,13 @@
 --- Register plugin declaration from config
 ---
 --- Usage:
+---   Pack.boot("packages.configs", { method = "git" })          -- global clone method for shorthand
+---   Pack.register({ "owner/repo", module = "plug" }):load({ ... })
 ---   Pack.register({ "https://...", module = "plug" }):load({ utils = { menu = "plug.menu" }, var = {...}, config = fn })
 ---   Pack.register(...):lazy({ config = fn }) -- post-UIEnter; only config/utils/var
----   Pack.register({ spec = { src = "...", name = "..." }, module = "..." })
+---   Pack.register({ spec = { src = "owner/repo", name = "..." }, module = "..." })
 local cycle = require("automic.deps.cycle")
+local source = require("automic.deps.source")
 local notify_once = require("automic.util.notify_once")
 local ensure_spec = require("automic.register.ensure_spec")
 local register_dep_tree = require("automic.register.dep_tree")
@@ -54,7 +57,18 @@ end
 ---@param plugin table
 ---@return Pack.Plugin|nil
 local function normalize_plugin(plugin)
+	local Pack = _G.Pack
 	local P = vim.tbl_deep_extend("force", {}, plugin)
+	local method = Pack.source_method or "git"
+
+	if rawget(P, "method") ~= nil then
+		notify_once(
+			"register:method",
+			'Pack.register: method is configured once in Pack.boot(config, { method = "git"|"http" }), not per register',
+			vim.log.levels.ERROR
+		)
+		return nil
+	end
 
 	if type(P[1]) == "string" then
 		local src = P[1]
@@ -62,12 +76,17 @@ local function normalize_plugin(plugin)
 		if P.spec ~= nil then
 			notify_once(
 				"register:spec_conflict",
-				"Pack.register: do not pass spec when [1] is already a URL",
+				"Pack.register: do not pass spec when [1] is already a source",
 				vim.log.levels.ERROR
 			)
 			return nil
 		end
-		P.spec = { src = src }
+		local ok, url = pcall(source.expand, src, method)
+		if not ok then
+			notify_once("register:source", "Pack.register: " .. url, vim.log.levels.ERROR)
+			return nil
+		end
+		P.spec = { src = url }
 	end
 
 	if type(P.spec) == "string" then
@@ -145,11 +164,19 @@ local function normalize_plugin(plugin)
 	if type(P.spec) ~= "table" or type(P.spec.src) ~= "string" or P.spec.src == "" then
 		notify_once(
 			"register:spec_invalid",
-			"Pack.register: requires [1] = \"url\", spec = { src = \"...\" }, or path / dev = true",
+			"Pack.register: requires [1] = \"owner/repo\" (or full URL), spec = { src = \"...\" }, or path / dev = true",
 			vim.log.levels.ERROR
 		)
 		return nil
 	end
+
+	-- spec.src may itself use GitHub shorthand; expand without mutating the caller's table.
+	local expand_ok, expanded_src = pcall(source.expand, P.spec.src, method)
+	if not expand_ok then
+		notify_once("register:source", "Pack.register: " .. expanded_src, vim.log.levels.ERROR)
+		return nil
+	end
+	P.spec = vim.tbl_extend("force", P.spec, { src = expanded_src })
 
 	return P
 end

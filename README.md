@@ -71,7 +71,7 @@ Arguments may be module names that return a table, or tables supplied inline.
 
 ```lua
 Pack.register({
-  "https://github.com/user/plugin.nvim",
+  "user/plugin.nvim",
   module = "plugin",
 }):load({
   config = function(plugin)
@@ -80,9 +80,18 @@ Pack.register({
 })
 ```
 
+Sources accept the `owner/repo` shorthand. The clone method is configured once on `Pack.boot`, SSH by default (`git@github.com:owner/repo.git`); full URLs (`https://…`, `git@…`) are used verbatim:
+
+```lua
+Pack.boot("packages.configs", { method = "git" })  -- default, SSH; method = "http" uses HTTPS
+
+Pack.register({ "user/plugin.nvim", module = "plugin" })  -- git@github.com:user/plugin.nvim.git
+```
+
 | Field | Purpose |
 | ----- | ------- |
-| `"https://…"` or `spec.src` | Repository URL for installation |
+| `"owner/repo"`, `"https://…"`, or `spec.src` | Repository source; shorthand expands per boot `method` |
+| `method` in `Pack.boot` 2nd arg | Shorthand clone method: `"git"` (default, SSH) or `"http"` (HTTPS); ignored for full URLs |
 | `spec.name` | Installation directory name |
 | `spec.version` | Pin to a branch, tag, commit, or version range |
 | `module` | Lua module used by `config` and `require()` (required) |

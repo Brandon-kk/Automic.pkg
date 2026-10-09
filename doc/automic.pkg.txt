@@ -67,13 +67,17 @@ After |:packadd|, the global |Pack| table is available.
 <
 
 	Call					Purpose ~
-	Pack.boot({module?})		Load all declaration modules under
+	Pack.boot({module?}[, {opts?}])	Load all declaration modules under
 					the given directory. The directory
 					must lie under
 					|stdpath|("config")/lua.
 					`Pack.boot("packages.configs")`
 					loads `lua/packages/configs/*.lua`
 					in alphabetical order.
+					`opts.method` selects how
+					`"owner/repo"` shorthand sources
+					are cloned: `"git"` (default,
+					SSH) or `"http"` (HTTPS).
 	:options({values})		Apply global settings. See
 					|Pack.boot.options()|.
 	:keys({entries}[, {mapleader}])
@@ -174,7 +178,7 @@ inline.
 
 >
 	Pack.register({
-	  "https://github.com/user/plugin.nvim",
+	  "user/plugin.nvim",
 	  module = "plugin",
 	}):load({
 	  config = function(plugin)
@@ -186,10 +190,13 @@ inline.
 Returns a handle providing |Pack.load()| / |Pack.lazy()|, or |nil| on
 validation failure. `Pack.register({})` is a no-op.
 
-							*Pack.Plugin*
+						*Pack.Plugin*
 	Field		Purpose ~
-	[1]		Repository URL (mutually exclusive with `spec`)
-	spec.src	Repository URL
+	[1]		Repository source: `"owner/repo"`
+			shorthand or full URL (mutually
+			exclusive with `spec`). Shorthand
+			expands per `Pack.boot` `method`.
+	spec.src	Repository source (same expansion)
 	spec.name	Installation directory name
 	spec.version	Branch, tag, commit, or |vim.version.range()|
 	module		Lua module for `config` / |require()| (required)

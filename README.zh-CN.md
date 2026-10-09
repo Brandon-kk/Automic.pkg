@@ -66,7 +66,7 @@ Pack.boot("packages.configs")
 
 ```lua
 Pack.register({
-  "https://github.com/user/plugin.nvim",
+  "user/plugin.nvim",
   module = "plugin",
 }):load({
   config = function(plugin)
@@ -75,9 +75,18 @@ Pack.register({
 })
 ```
 
+仓库地址支持 `owner/repo` 简写。克隆方式在 `Pack.boot` 统一指定，默认走 SSH（`git@github.com:owner/repo.git`）；写全 URL（`https://…`、`git@…`）原样使用：
+
+```lua
+Pack.boot("packages.configs", { method = "git" })  -- 默认，SSH；method = "http" 则走 HTTPS
+
+Pack.register({ "user/plugin.nvim", module = "plugin" })  -- git@github.com:user/plugin.nvim.git
+```
+
 | 字段 | 作用 |
 | ---- | ---- |
-| `"https://…"` 或 `spec.src` | 安装用的仓库地址 |
+| `"owner/repo"`、`"https://…"` 或 `spec.src` | 安装用的仓库地址；简写按 boot 的 `method` 展开 |
+| `Pack.boot` 第二参 `method` | 简写的克隆方式：`"git"`（默认，SSH）或 `"http"`（HTTPS）；对完整 URL 无效 |
 | `spec.name` | 安装目录名 |
 | `spec.version` | 钉选分支、标签、提交或版本范围 |
 | `module` | `config` 与 `require()` 所用的 Lua 模块（必填） |

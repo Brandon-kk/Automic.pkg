@@ -18,6 +18,9 @@ _G.Pack = vim.tbl_extend("force", _G.Pack or {
 	idle = {},
 	registry = {},
 	refs = {},
+	-- How Pack.register "owner/repo" shorthand is cloned: "git" SSH (default) or "http" HTTPS;
+	-- set via Pack.boot(config, { method = ... }) before :run().
+	source_method = "git",
 	-- Session maps grow with registrations; re-register updates in place.
 	-- Full teardown is a Neovim restart (no Pack.reset API by design).
 	_listeners = {},

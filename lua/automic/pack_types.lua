@@ -1,8 +1,8 @@
 --- Pack API types for lua-language-server; no runtime logic
 
 ---@class Pack.SpecTable
----@field src string Repository URL
---- Repository URL
+---@field src string Repository source: "owner/repo" shorthand (expanded per Pack.boot method) or full URL
+--- Repository source: shorthand or full URL
 ---@field name? string Pack directory name (overrides the URL-derived name)
 --- Pack directory name (overrides URL-derived name)
 ---@field version? string|table Version, branch, tag, or version range (vim.pack)
@@ -11,10 +11,10 @@
 ---@alias Pack.Spec Pack.SpecTable
 
 ---@class Pack.Dep
----@field [1]? string Shorthand repository URL (mutually exclusive with src / spec)
---- Shorthand repo URL (mutually exclusive with src / spec)
----@field src? string Dependency repository URL (mutually exclusive with [1] / spec)
---- Dependency repo URL (mutually exclusive with [1] / spec)
+---@field [1]? string GitHub shorthand ("owner/repo") or full repository URL (mutually exclusive with src / spec)
+--- GitHub "owner/repo" shorthand or full repo URL (mutually exclusive with src / spec)
+---@field src? string Repository source: "owner/repo" shorthand or full URL (mutually exclusive with [1] / spec)
+--- Repository source: shorthand or full URL (mutually exclusive with [1] / spec)
 ---@field spec? Pack.SpecTable Dependency spec table (mutually exclusive with [1] / src)
 --- Dependency spec table (mutually exclusive with [1] / src)
 ---@field name? string Pack directory name
@@ -33,10 +33,10 @@
 --- Version (when using [1]/src shorthand)
 
 ---@class Pack.Plugin
----@field [1]? string Shorthand repository URL (mutually exclusive with spec)
---- Shorthand repo URL (mutually exclusive with spec)
----@field spec? Pack.SpecTable Plugin spec table (required unless [1] is a URL or path/dev is set)
---- Plugin spec table (required unless [1] is a URL or path/dev is set)
+---@field [1]? string GitHub shorthand ("owner/repo") or full repository URL (mutually exclusive with spec)
+--- GitHub "owner/repo" shorthand or full repo URL (mutually exclusive with spec)
+---@field spec? Pack.SpecTable Plugin spec table (required unless [1] is a source or path/dev is set)
+--- Plugin spec table (required unless [1] is a source or path/dev is set)
 ---@field module string Require path (required; not inferred from name)
 --- Require path (required; not inferred from name)
 ---@field name? string Pack directory name; usually resolved from spec
@@ -114,9 +114,13 @@
 ---@field diagnostic? table Passed to |vim.diagnostic.config()|
 ---@field plugins? fun()|table<any, fun()> Run last: third-party global config APIs (not limited to vim.g), e.g. vim.g / vim.filetype / plugin globals
 
+--- Options for Pack.boot(config, opts)
+---@class Pack.BootOpts
+---@field method? "git"|"http" Clone method for "owner/repo" shorthand: "git" SSH (default), "http" HTTPS; full URLs are unaffected
+
 --- User-facing Pack API only (internals omitted so Pack. completion stays clean)
 ---@class Pack
----@field boot fun(config?: string): Pack.BootHandle
+---@field boot fun(config?: string, opts?: Pack.BootOpts): Pack.BootHandle
 ---@field register fun(plugin: Pack.Plugin): Pack.Handle|nil
 ---@field root fun(markers: string|(string|string[])[]): fun(bufnr: integer, on_dir: fun(dir: string))
 
