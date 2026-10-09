@@ -58,6 +58,17 @@ return function(name, build_cmd, on_finish, opts)
 	end
 	Pack.building[name] = true
 
+	-- Deterministic validation failure: record it the same way runtime failures are.
+	local function reject(msg)
+		Pack.building[name] = false
+		stamp.clear(dir)
+		failed.add(name, msg, stamp.fingerprint(build_cmd), stamp.package_rev(dir))
+		vim.notify(name .. " build failed: " .. msg, vim.log.levels.ERROR)
+		if on_finish then
+			on_finish(false, msg)
+		end
+	end
+
 	-- vim.system on_exit is a fast event; vim.fn (sha256/writefile/…) must be scheduled
 	-- unless the caller is already on the main thread with opts.sync.
 	local function finish(ok, err_msg)
@@ -76,7 +87,9 @@ return function(name, build_cmd, on_finish, opts)
 				end
 			else
 				stamp.clear(dir)
-				failed.add(name)
+				-- Persist the failure with its fingerprint + HEAD so later sessions can
+				-- skip deterministically-failing rebuilds and show the recorded error.
+				failed.add(name, err_msg, stamp.fingerprint(build_cmd), stamp.package_rev(dir))
 				vim.notify(name .. " build failed: " .. tostring(err_msg), vim.log.levels.ERROR)
 				if on_finish then
 					on_finish(false, err_msg)
@@ -97,7 +110,8 @@ return function(name, build_cmd, on_finish, opts)
 			pcall(vim.cmd.packadd, name)
 			prepare_fresh(name, dir)
 			local ok, r1, r2 = pcall(build_cmd, name, dir)
-			local success, err = result.from_pcall(ok, r1, r2)
+			-- Task-like returns get the same budget as shell builds; plain builds ignore it.
+			local success, err = result.from_pcall(ok, r1, r2, BUILD_TIMEOUT_MS)
 			finish(success, err)
 		end
 		if sync then
@@ -127,26 +141,11 @@ return function(name, build_cmd, on_finish, opts)
 	local final_cmd = {}
 	if type(build_cmd) == "string" then
 		if build_cmd:match("^%s*$") then
-			Pack.building[name] = false
-			stamp.clear(dir)
-			failed.add(name)
-			vim.notify(name .. " build failed: empty build rejected", vim.log.levels.ERROR)
-			if on_finish then
-				on_finish(false, "empty build")
-			end
+			reject("empty build rejected")
 			return
 		end
 		if build_cmd:find('["\']') then
-			Pack.building[name] = false
-			stamp.clear(dir)
-			failed.add(name)
-			vim.notify(
-				name .. " build failed: quoted shell strings must use string[] form",
-				vim.log.levels.ERROR
-			)
-			if on_finish then
-				on_finish(false, "quoted shell string")
-			end
+			reject("quoted shell strings must use string[] form")
 			return
 		end
 		for word in build_cmd:gmatch("%S+") do
@@ -155,36 +154,18 @@ return function(name, build_cmd, on_finish, opts)
 	elseif type(build_cmd) == "table" then
 		for i, word in ipairs(build_cmd) do
 			if type(word) ~= "string" then
-				Pack.building[name] = false
-				stamp.clear(dir)
-				failed.add(name)
-				vim.notify(name .. " build failed: argv[" .. i .. "] must be string", vim.log.levels.ERROR)
-				if on_finish then
-					on_finish(false, "invalid argv")
-				end
+				reject("argv[" .. i .. "] must be string")
 				return
 			end
 		end
 		final_cmd = build_cmd
 	else
-		Pack.building[name] = false
-		stamp.clear(dir)
-		failed.add(name)
-		vim.notify(name .. " build failed: invalid build type " .. type(build_cmd), vim.log.levels.ERROR)
-		if on_finish then
-			on_finish(false, "invalid build type")
-		end
+		reject("invalid build type " .. type(build_cmd))
 		return
 	end
 
 	if type(final_cmd) ~= "table" or #final_cmd == 0 or type(final_cmd[1]) ~= "string" then
-		Pack.building[name] = false
-		stamp.clear(dir)
-		failed.add(name)
-		vim.notify(name .. " build failed: invalid shell argv", vim.log.levels.ERROR)
-		if on_finish then
-			on_finish(false, "invalid argv")
-		end
+		reject("invalid shell argv")
 		return
 	end
 

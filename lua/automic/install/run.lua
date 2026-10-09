@@ -102,15 +102,22 @@ return function(active_specs, disabled_specs)
 			end
 		end
 		batch(function(result)
-			if #result.fail_names > 0 then
-				vim.notify(
-					"Build failed; automatic restart skipped: " .. table.concat(result.fail_names, ", "),
-					vim.log.levels.ERROR
-				)
-				return
-			end
 			for _, name in ipairs(result.ok_names) do
 				restart_state.built[#restart_state.built + 1] = name
+			end
+			if #result.fail_names > 0 then
+				vim.notify(
+					"Build failed for: " .. table.concat(result.fail_names, ", ")
+						.. "\nRestarting; affected plugins stay disabled until :PackReBuild <name> succeeds.",
+					vim.log.levels.ERROR
+				)
+				-- Failed builds are recorded with their fingerprint, so the next boot's
+				-- install pass will skip them instead of looping; restarting applies the
+				-- clean boot gate (single message, plugin held disabled).
+				vim.defer_fn(function()
+					relaunch()
+				end, 3000)
+				return
 			end
 			if on_success then
 				on_success()

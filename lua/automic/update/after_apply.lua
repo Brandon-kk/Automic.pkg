@@ -14,21 +14,32 @@ return function()
 		end
 	end
 
+	local function mark_built(ok_names)
+		for _, name in ipairs(ok_names) do
+			state.built[#state.built + 1] = name
+		end
+	end
+
 	if #names == 0 then
 		require("automic.restart").relaunch()
 		return
 	end
 
 	batch(function(result)
+		mark_built(result.ok_names)
 		if #result.fail_names > 0 then
 			vim.notify(
-				"Build failed; automatic restart skipped: " .. table.concat(result.fail_names, ", "),
+				"Build failed for: " .. table.concat(result.fail_names, ", ")
+					.. "\nRestarting; affected plugins stay disabled until :PackReBuild <name> succeeds.",
 				vim.log.levels.ERROR
 			)
+			-- The live session was partially unloaded for the build; staying in it only
+			-- produces require-error cascades. Restart so boot gating (ready) holds the
+			-- failed plugins disabled with a single message instead.
+			vim.defer_fn(function()
+				require("automic.restart").relaunch()
+			end, 3000)
 			return
-		end
-		for _, name in ipairs(result.ok_names) do
-			state.built[#state.built + 1] = name
 		end
 		require("automic.restart").relaunch()
 	end, names)

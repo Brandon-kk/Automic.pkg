@@ -8,6 +8,8 @@
 local stamp = require("automic.build.stamp")
 local retry = require("automic.build.retry")
 local kind = require("automic.build.kind")
+local failed = require("automic.build.failed")
+local notify_once = require("automic.util.notify_once")
 local BUILD_TIMEOUT_MS = 300000
 
 ---@param name string
@@ -26,6 +28,23 @@ return function(name, build)
 	end
 	if stamp.current(dir, build) then
 		return true
+	end
+
+	local fp = stamp.fingerprint(build)
+	local rev = stamp.package_rev(dir)
+
+	-- A recorded failure for this exact build fingerprint + HEAD is deterministic:
+	-- skip the re-attempt (which could hang startup for minutes) and gate the load
+	-- with one clear message. :PackReBuild clears the record and retries.
+	if failed.matches(name, fp, rev) then
+		local entry = failed.get(name) or {}
+		notify_once(
+			"ready:failed:" .. name,
+			name .. " build previously failed, not retrying (load gated): " .. tostring(entry.err)
+				.. "\nRun :PackReBuild " .. name .. " after fixing, then restart.",
+			vim.log.levels.ERROR
+		)
+		return false
 	end
 
 	-- Wait out an in-flight batch/ensure build started earlier in this session.

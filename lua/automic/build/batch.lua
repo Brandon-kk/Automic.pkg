@@ -2,6 +2,7 @@
 local cmds = require("automic.build.cmds")
 local stamp = require("automic.build.stamp")
 local fresh = require("automic.build.fresh")
+local failed = require("automic.build.failed")
 local run = require("automic.build.run")
 local retry = require("automic.build.retry")
 
@@ -27,6 +28,12 @@ local function collect_pending(names, opts)
 			skip = true
 		end
 		if not skip and not opts.force and stamp.current(dir, build) then
+			skip = true
+		end
+		-- Recorded failure for this fingerprint + HEAD is deterministic; do not re-run
+		-- it in install/update batches (recovery goes through :PackReBuild, which
+		-- clears the record first).
+		if not skip and not opts.force and failed.matches(name, stamp.fingerprint(build), stamp.package_rev(dir)) then
 			skip = true
 		end
 		-- Already building: still collect; run returns already building, then wait to merge

@@ -32,10 +32,10 @@ return function(name, build)
 				pcall(vim.fn.delete, require("automic.util.platform").state_path("pack-hooks-install.stamp"))
 				if cmds.get(data.spec.name) then
 					stamp.clear(data.path)
-					-- Any pack with build: same-session require()/commands may still
-					-- hold pre-checkout module state; force a fresh load before build.
-					fresh.mark(data.spec.name)
 				end
+				-- Mark every changed pack (also build-less deps like blink.lib) so the
+				-- post-build module unload can cascade to updated dependencies.
+				fresh.mark(data.spec.name)
 			end
 		end,
 	})

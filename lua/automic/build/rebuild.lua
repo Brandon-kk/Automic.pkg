@@ -36,6 +36,9 @@ return function(targets, opts)
 				failed.remove(n)
 			end
 		elseif force or needs_build(n) then
+			-- Explicit rebuild always retries: clear the recorded failure so batch
+			-- does not skip it and a success/failure refreshes the record.
+			failed.remove(n)
 			pending[#pending + 1] = n
 		elseif not explicit then
 			failed.remove(n)
